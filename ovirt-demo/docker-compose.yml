@@ -1,0 +1,39 @@
+services:
+  db:
+    image: mysql
+    container_name: mysql-cct1
+    command: --default-authentication-plugin=mysql_native_password
+    env_file:
+      - .env
+    ports:
+      - "3312:3306"
+    healthcheck:
+      test: mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER --password=$$MYSQL_PASSWORD
+      start_period: 5s
+      interval: 3s
+      timeout: 5s
+      retries: 6
+  seeder:
+    image: mysql
+    container_name: mysql-seeder-ctt1
+    entrypoint:
+      [
+        "bash",
+        "-c",
+        "mysql --host=mysql-cct1 -u $$MYSQL_USER --password=$$MYSQL_PASSWORD -D $$MYSQL_DATABASE -e 'source /seed.sql'"
+      ]
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./seed.sql:/seed.sql
+  app:
+    build:
+      context: .
+    container_name: app-cct1
+    env_file:
+      - .env
+    ports:
+      - "5000:5000"
