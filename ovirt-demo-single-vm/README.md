@@ -1,4 +1,4 @@
-# IaaS with OVirt
+# Virtualization with OVirt - Single VM
 
 This implementation of the reference scenario is designed to be deployed on a virtual machine, which can be easily created with  OVirt.
 
