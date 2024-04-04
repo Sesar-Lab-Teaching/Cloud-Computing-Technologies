@@ -8,6 +8,7 @@
 - https://discourse.ubuntu.com/t/single-node-guided/35765
 - https://docs.openstack.org/devstack/latest/guides/single-vm.html
 - https://ubuntu.com/tutorials/install-openstack-on-your-workstation-and-launch-your-first-instance#2-install-openstack
+- See doc for devstack in the latest stable release: https://opendev.org/openstack/devstack/src/branch/stable/2024.1/doc/source
 
 ---
 
@@ -38,31 +39,47 @@ sudo -u stack -i
 Then install the Openstack components. **Important**: make sure the master points to a stable release, otherwise clone a previous commit.
 
 ```
-git clone https://git.openstack.org/openstack-dev/devstack
+git clone --branch stable/2024.1 https://git.openstack.org/openstack-dev/devstack
 
 cd devstack
 
-echo '[[local|localrc]]' > local.conf
-echo "ADMIN_PASSWORD=openstackcct" >> local.conf
-echo "DATABASE_PASSWORD=\$ADMIN_PASSWORD" >> local.conf
-echo "RABBIT_PASSWORD=\$ADMIN_PASSWORD" >> local.conf
-echo "SERVICE_PASSWORD=\$ADMIN_PASSWORD" >> local.conf
-echo -e "\n## Neutron options" >> local.conf
-echo "Q_ML2_PLUGIN_EXT_DRIVERS=dns,port_security,qos" >> local.conf
+cat samples/local.conf | grep -E "^[^#]" > local.conf
 ```
 
-\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*
-### Extra
+Merge the current `local.conf` with the following one (which should overwrite duplicate props):
 
-The general guide suggests to use the config template in samples/local.conf, but the single-VM configuration does not need all of them, which is why we preferred to stick with the minimal configurationa
 ```
-cp samples/local.conf local.conf
+### resolve variables before with: cat << EOF
 
-sed -i -E -e 's/ADMIN_PASSWORD=nomoresecret/ADMIN_PASSWORD=openstackcct/g' \
-    -e 's/DATABASE_PASSWORD=.*$/DATABASE_PASSWORD=\$ADMIN_PASSWORD/g' \
-    -e 's/RABBIT_PASSWORD=.*$/RABBIT_PASSWORD=\$ADMIN_PASSWORD/g' local.conf
+[[local|localrc]]
+ADMIN_PASSWORD=openstackcct
+DATABASE_PASSWORD=\$ADMIN_PASSWORD
+RABBIT_PASSWORD=\$ADMIN_PASSWORD
+SERVICE_PASSWORD=\$ADMIN_PASSWORD
+PUBLIC_INTERFACE=enp1s0
+HOST_IP=$(ip addr | grep -oE "172\.20\.28\.[[:digit:]]+" | head -1)
+FLOATING_RANGE=172.20.28.0/24
+PUBLIC_NETWORK_GATEWAY=$(ip route | grep -oP '(?<=default via )[0-9.]+')
+Q_FLOATING_ALLOCATION_POOL=start=172.20.28.61,end=172.20.28.80
+
+# Neutron options
+# Q_ML2_PLUGIN_EXT_DRIVERS=dns,port_security,qos # dns necessary?
+
+### EOF
 ```
-\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*
+
+Then we need to change the networking configurations to enable IP forwarding, modify (with sudo) `/etc/sysctl.conf` with:
+
+```
+net.ipv4.conf.all.proxy_arp=1
+net.ipv4.ip_forward=1
+```
+
+Finally run:
+
+```
+sudo sysctl -p
+```
 
 Then you can start Openstack (requires 15 mins at least)
 
@@ -80,15 +97,36 @@ cd devstack
 
 ## Install Microstack
 
+For the default options, append `--accept-defaults`, but if we need to make the Openstack services and VMs available to the other hosts in the network, it is necessary to configure the ip range. This installation requires 2 NIC, to configure the second one:  
+  
+```
+# `ip addr` to find the disabled nic
+sudo ip link set dev enp7s0 up
+sudo dhclient enp7s0
+```
+
 ```
 sudo snap install openstack --channel 2023.1
 sunbeam prepare-node-script | bash -x && newgrp snap_daemon
 IP_ADDRESS=#... put the ip address detected by your virtual engine
-sudo sed -i -e 's/127.0.1.1 openstackcct/$IP_ADDRESS openstackcct/g' /etc/hosts
-sunbeam cluster bootstrap --accept-defaults
-sunbeam configure --accept-defaults --openrc demo-openrc
-# ... TODO
+# IP_ADDRESS=$(ifconfig | grep -oE "172\.20\.28\.[[:digit:]]+" | head -1)
+sudo sed -i -e "s/127.0.1.1 openstackcct/$IP_ADDRESS openstackcct/g" /etc/hosts
+sunbeam cluster bootstrap # Input:
+# CIDR: e.g. 172.20.28.0/24
+# IP range: e.g. 172.20.28.61-172.20.28.81
+sunbeam configure --openrc demo-openrc # Input (for those not listed keep the default):
+# local/remote: remote
+# CIDR: e.g. 172.20.28.0/24
+# Gateway: e.g. 172.20.28.1
+# Password: e.g. openstackcct
+# Start of IP allocation for external network: e.g. 172.20.28.82
+# End of IP allocation for external network: e.g. 172.20.28.95
+# Network type for access to external network: e.g. enp7s0 (the second NIC)
+reboot
+# ...
 ```
+
+**TODO**: unstable solution and not fully working
 
 ### To uninstall Microstack
 
@@ -424,9 +462,66 @@ To check the mount point in the server, the `attachments` field in `openstack vo
 
 ## Booting  from a volume
 
-**TODO**
+After creating a volume from an image, you can attach this volume (instead of an image) to a `server create` command:
+
+```
+openstack server create --volume {volume_name} ...
+```
+
+In this way the server has no ephemeral storage at all. one advantage is that the servers need less storage, and the instance storage is centralized in a storage system. To avoid the creation of a new volume, we can directly run:
+
+```
+openstack server create --image {image_name} --boot-from-volume {size} ...
+```
 
 ---
+
+## Snapshots & Backups
+
+Snapshot is a useful feature to create reproducible "snapshot" of our volume at a certain point in time. We can then revert the volume to a previous snapshot or create a volume from it. More here:
+
+```
+openstack help snapshot
+```
+
+backups is another service provided by Openstack and allows the duplication of a volume on several possible storage systems (swift, NFS; Google Cloud Storage, ...). It is also possible to create incremental backups. More here:
+
+```
+openstack help volume backup
+```
+
+# Orchestration with Heat
+
+Up to now, we have created a semi-automated deployment of the involved resources (images, servers, volumes, security groups, networks, storage,...). Heat is a service that allows the full automation of the entire stack using a Yaml document. In this description file, each resource has a type and a list of properties, which represent the options passed on to the command line:
+
+```
+heat_template_version: rocky
+resources:
+    dbserver:
+        type: OS::Nova::Server
+        properties:
+            image: dbimage
+            flavor: d2
+            ...
+```
+
+Once the stack is ready, it can be validated:
+
+```
+openstack orchestration template validate -t template_path.yaml
+```
+
+Then, we launch it:
+
+```
+openstack stack create -t template_path.yaml stack_name
+```
+
+To monitor the state of the stack deployment, we can read the events:
+
+```
+openstack stack event list stack_name
+```
 
 # Deployment of the scenario
 
