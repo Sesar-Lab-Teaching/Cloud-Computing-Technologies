@@ -193,7 +193,12 @@ Every Openstack command has the form:
 openstack {service_id} {operation} [-c column_to_show] [-f formatting_option]
 ```
 
-For more information on the available services and operations, use the help command: `openstack help {service_id} [{operation}]
+For more information on the available services and operations, use the help command: `openstack help {service_id} [{operation}]`.  The second method to call Openstack APIs is through HTTP APIs:
+
+```
+OS_TOKEN=$(openstack token issue -c id -f value)
+curl -X GET -H "X-Auth-Token: $OS_TOKEN" http://...
+```
 
 ---
 
@@ -209,11 +214,11 @@ Since the only one available with devstack is cirrOS, we may beed to import a ne
 
 ```
 openstack image create --min-disk 5 --min-ram 1024 --file path_to_img_file.img --public ubuntu-22.04LTS-server-cloudimg-amd64
+# OR with the glance apis
+glance image-create --file debian-10.13.24-20240324-openstack-amd64.qcow2 --name "Debian10.13" --disk-format qcow2 --container-format bare --progress
 ```
 
-The same can be done on the Horizon dashboard: *Compute* -> *Images* -> *Create Image*.
-
----
+The same can be done on the Horizon dashboard: *Compute* -> *Images* -> *Create Image*, or through HTTP APIs.
 
 # Computing with Nova
 
@@ -297,6 +302,8 @@ Finally, you can attach this group to an existing server with
 openstack server add security group testinstance1 testgroup1
 ```
 
+---
+
 ### Floating IP
 
 The server can access the outside world thanks to SNAT, that allows packets to flow from the internal network to the external network. We can do the opposite by creating a Floating IP, which belongs to the address range of the external network. Any packet sent to this IP address is redirected to the router connecting the internal and external networks, which is configured to perform DNAT: the Floating IP of the external network is converted to the Fixed IP of the internal network.
@@ -331,6 +338,29 @@ And use the default password (`gocubsgo`) to access it. At this point, you can a
 
 ---
 
+## SSH Access
+
+Now that a server can accept SSH connections, the recommended way to access it includes the usage of SSH keys. The following command creates a new key pair: Nova stores the public key and injects it into the instance through `cloud-init`, while we keep the private part:
+
+```
+openstack keypair create demokey > my_data/keys/demokey.pem
+chmod 600 my_data/keys/demokey.pem
+```
+
+Next, the server creation:
+
+```
+openstack server create --image Fedora-39-1.5 --flavor 2 --network private --key-name demokey testinstance2
+```
+
+To access the instance with SSH, we have to specify the private key location and assign a floating IP to the host:
+
+```
+ssh -i path_to_pem.pem fedora@{floating_ip}
+```
+
+---
+
 ## Provisioning the servers
 
 A first type of configuration is the keypair attachment when the server is created. We can do much more by leveraging the metadata service provided by Nova. This service is available within any instance at `http://169.254.169.254` and is used to personalize the instance creation in many ways:
@@ -360,8 +390,6 @@ db_ip=$(jq -r .meta.db_ip meta_data.json)
 This is especially useful to parameterize the creation of a new server. Any number of properties can be specified, like db name, user and password for a db creation. The web server needs the db IP address, which can be passed with the key-value metadata.
 
 The cloud-init package can query the metadata APIs or be configured with a config drive with the option `--config-drive=true` in the server creation.
-
-
 
 ---
 
@@ -548,14 +576,56 @@ openstack stack event list stack_name
 
 # Deployment of the scenario
 
-Now that we have configured the network, we can deploy the db and web server. For the db:
+First we need to configure the network:
 
 ```
-openstack server create --image ubuntu-22.04LTS-server-cloudimg-amd64 --flavor 2 --network backend mysqlinstance1
-openstack server create --image Fedora-39-1.5 --flavor 2 --network private testinstance1
+openstack security group rule create --dst-port 22 --protocol tcp default
+openstack security group rule create --protocol icmp default
+openstack security group rule create --dst-port 53 --protocol udp default
+
+WEBSERVER_IP=192.168.1.3
+MYSQL_IP=192.168.1.4
+openstack network create demo_network
+openstack subnet create subnet1 --network demo_network --dns-nameserver 8.8.8.8 --subnet-range 192.168.1.0/24
+openstack router create demo_router
+openstack router set demo_router --external-gateway public
+openstack router add subnet demo_router subnet1
+# Create a port for web server with a fixed IP
+openstack port create --network demo_network --fixed-ip subnet=subnet1,ip-address=$WEBSERVER_IP port_webserver
+# Create a port for mysql with a fixed IP
+openstack port create --network demo_network --fixed-ip subnet=subnet1,ip-address=$MYSQL_IP port_mysql
 ```
 
-**TODO**
+In the same network we deploy the db and web server:
+
+```
+# mysql
+openstack server create --image Debian10.13 --flavor d2 --port port_mysql --key-name demokey mysql_instance
+openstack floating ip create public --tag mysql_floating_ip
+MYSQL_FLOATING_IP_INFO=$(openstack floating ip list --long -c ID -c "Floating IP Address" -c IpAddress -c Tags -f value | grep "mysql_floating_ip")
+MYSQL_FLOATING_IP_ID=$(echo "$MYSQL_FLOATING_IP_INFO" | awk '{print $1}')
+MYSQL_FLOATING_IP_ADDRESS=$(echo "$MYSQL_FLOATING_IP_INFO" | awk '{print $2}')
+openstack server add floating ip mysql_instance $MYSQL_FLOATING_IP_ID
+
+# webserver
+openstack server create --image Debian10.13 --flavor d2 --availability-zone nova --port port_webserver --key-name demokey webserver_instance
+openstack floating ip create public --tag webserver_floating_ip
+WEBSERVER_FLOATING_IP_INFO=$(openstack floating ip list --long -c ID -c "Floating IP Address" -c IpAddress -c Tags -f value | grep "webserver_floating_ip")
+WEBSERVER_FLOATING_IP_ID=$(echo "$WEBSERVER_FLOATING_IP_INFO" | awk '{print $1}')
+WEBSERVER_FLOATING_IP_ADDRESS=$(echo "$WEBSERVER_FLOATING_IP_INFO" | awk '{print $2}')
+openstack server add floating ip webserver_instance $WEBSERVER_FLOATING_IP_ID
+```
+
+and access them with:
+
+```
+ssh -i my_data/keys/demokey.pem debian@$MYSQL_FLOATING_IP_ADDRESS
+ssh -i my_data/keys/demokey.pem debian@$WEBSERVER_FLOATING_IP_ADDRESS
+```
+
+Both the web server and the mysql server can be installed.
+
+**TODO: Provisioning with user data (cloud-init)**
 
 
 
