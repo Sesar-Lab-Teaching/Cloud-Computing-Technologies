@@ -56,7 +56,7 @@ Choose only one of the following configurations:
 
 With the minimal configuration, you can access guest machines (created with Nova) only from the VM where you have installed devstack.
 
-The `local.conf` provided already contains the necessary configurations.
+The `local.conf` provided already contains the necessary configurations. In this guide, the password is `openstackcct`.
 
 ### Shared host 
 To configure devstack in a way that the guest VMs are accessible from the outside (the network you are connected to), you need additional condigurations.
@@ -120,8 +120,8 @@ cd devstack
 
 ## Install Microstack
 
-For the default options, append `--accept-defaults`, but if we need to make the Openstack services and VMs available to the other hosts in the network, it is necessary to configure the ip range. This installation requires 2 NIC, to configure the second one:  
-  
+For the default options, append `--accept-defaults`, but if we need to make the Openstack services and VMs available to the other hosts in the network, it is necessary to configure the ip range. This installation requires 2 NIC, to configure the second one:
+
 ```
 # `ip addr` to find the disabled nic
 sudo ip link set dev enp7s0 up
@@ -173,7 +173,7 @@ sudo init 6
 
 ## Usage
 
-From now on, always login with the "stack" user (`sudo -u stack -i`) to run Openstack commands.
+From now on, always login with the "stack" user (`sudo -u stack -i`) to run Openstack commands. To automate this step, append `sudo -u stack -i` at the end of the `.bashrc` file.
 you can access horizon (the Web UI Dashboard) from `http://172.20.28.108/dashboard/project`.
 
 username: admin        # "demo", or any other user created
@@ -184,7 +184,7 @@ To access Openstack from the console, you first need to configure it with the ri
 
 ```
 # source devstack/openrc {username} {project_name}
-source devstack/openrc admin admin
+source devstack/openrc demo demo
 ```
 
 Every Openstack command has the form:
@@ -210,11 +210,11 @@ Each server needs an image, basically an OS that hosts the server. Glance is the
 openstack image list
 ```
 
-Since the only one available with devstack is cirrOS, we may beed to import a new image, like Ubuntu/Fedora, but the image optimized for the cloud usage. First, download the image of the latest stable release (as of March 2024 is [22.04](https://cloud-images.ubuntu.com/jammy/current/) for ubuntu). The image format should be `.img`or `qcow2`, for instance `jammy-server-cloudimg-amd64.img`:
+Since the only one available by default with devstack is cirrOS, we may need to import a new image, like Ubuntu, but the one optimized for the cloud usage. First, download the image of the latest stable release (as of March 2024 is [22.04](https://cloud-images.ubuntu.com/jammy/current/) for ubuntu). The image format should be `.img`or `qcow2`, for instance `jammy-server-cloudimg-amd64.img`:
 
 ```
 openstack image create --min-disk 5 --min-ram 1024 --file path_to_img_file.img --public ubuntu-22.04LTS-server-cloudimg-amd64
-# OR with the glance apis
+# OR with the glance apis (for Debian)
 glance image-create --file debian-10.13.24-20240324-openstack-amd64.qcow2 --name "Debian10.13" --disk-format qcow2 --container-format bare --progress
 ```
 
@@ -235,7 +235,7 @@ To run a cirros server, connected to the private network with the minimum requir
 openstack server create --image cirros-0.6.2-x86_64-disk --flavor 1 --network private testinstance1
 ```
 
-To verify whether the instance is active, run `openstack server show testinstance1 -c status`. Other fields to check are `addresses`. 
+To verify whether the instance is active, run `openstack server show testinstance1 -c status`. Other fields to check are `addresses`.
 
 We can also see logs from the server using
 
@@ -328,13 +328,13 @@ openstack server add floating ip testinstance1 {floating_ip}
 
 ---
 
-After configuring the security group and the floating IP, we can connect to the server using the floating IP. SSH is for now the only allowed connection type, so:
+After configuring the security group and the floating IP, we can connect to the server using the floating IP. With the cirrOS image, if we have enabled the 22/tcp port, then SSH is the only available connection type:
 
 ```
 ssh cirros@{floating_IP}
 ```
 
-And use the default password (`gocubsgo`) to access it. At this point, you can also enable the public key access. Actually, we could have done that using the Keypair service of Openstack, but can only be done at server creation.
+And use the default password (`gocubsgo`) to access it. Instead of using the password authentication method, we can configure the  public key method using a keypair.
 
 ---
 
@@ -347,7 +347,7 @@ openstack keypair create demokey > my_data/keys/demokey.pem
 chmod 600 my_data/keys/demokey.pem
 ```
 
-Next, the server creation:
+Next, the server creation (here we are using Fedora because Ubuntu needs additional configuration, i.e. DNS resolution):
 
 ```
 openstack server create --image Fedora-39-1.5 --flavor 2 --network private --key-name demokey testinstance2
@@ -442,11 +442,6 @@ openstack port create frontend-port --network frontend
 openstack router add port back-front-router frontend-port
 ```
 
-Looking at the created ports for the backend network, with `openstack port list --network backend -f yaml --long` we can see that 2 ports have been allocated in the subnet:
-
-- The port for the router
-- The port for the DHCP server (created automatically)
-
 ---
 
 ## DHCP configurations
@@ -466,7 +461,7 @@ Where `10.1.1.110` is the port IP connecting the frontend router to the backend 
 
 ### DNS configurations on the subnet
 
-The other possible solution is to attach a dns directly to the subnet:
+The other possible solution is to attach a dns directly to the subnet (`1.1.1.1` is a public dns resolver):
 
 ```
 openstack subnet set frontend-subnet --dns-nameserver 1.1.1.1 --host-route destination=10.2.2.0/24,gateway=10.1.1.110
@@ -576,31 +571,32 @@ openstack stack event list stack_name
 
 # Deployment of the scenario
 
-First we need to configure the network:
+First, we need to create an SSH keypair, as described [here](#ssh-access).
+
+Then, we need to configure the network:
 
 ```
 openstack security group rule create --dst-port 22 --protocol tcp default
 openstack security group rule create --protocol icmp default
-openstack security group rule create --dst-port 53 --protocol udp default
 
 WEBSERVER_IP=192.168.1.3
 MYSQL_IP=192.168.1.4
 openstack network create demo_network
-openstack subnet create subnet1 --network demo_network --dns-nameserver 8.8.8.8 --subnet-range 192.168.1.0/24
+openstack subnet create demo_subnet --network demo_network --dns-nameserver 8.8.8.8 --subnet-range 192.168.1.0/24
 openstack router create demo_router
 openstack router set demo_router --external-gateway public
-openstack router add subnet demo_router subnet1
+openstack router add subnet demo_router demo_subnet
 # Create a port for web server with a fixed IP
-openstack port create --network demo_network --fixed-ip subnet=subnet1,ip-address=$WEBSERVER_IP port_webserver
+openstack port create --network demo_network --fixed-ip subnet=demo_subnet,ip-address=$WEBSERVER_IP port_webserver
 # Create a port for mysql with a fixed IP
-openstack port create --network demo_network --fixed-ip subnet=subnet1,ip-address=$MYSQL_IP port_mysql
+openstack port create --network demo_network --fixed-ip subnet=demo_subnet,ip-address=$MYSQL_IP port_mysql
 ```
 
 In the same network we deploy the db and web server:
 
 ```
 # mysql
-openstack server create --image Debian10.13 --flavor d2 --port port_mysql --key-name demokey mysql_instance
+openstack server create --image Ubuntu22.04LTS --flavor d2 --port port_mysql --key-name demokey mysql_instance
 openstack floating ip create public --tag mysql_floating_ip
 MYSQL_FLOATING_IP_INFO=$(openstack floating ip list --long -c ID -c "Floating IP Address" -c IpAddress -c Tags -f value | grep "mysql_floating_ip")
 MYSQL_FLOATING_IP_ID=$(echo "$MYSQL_FLOATING_IP_INFO" | awk '{print $1}')
@@ -608,7 +604,7 @@ MYSQL_FLOATING_IP_ADDRESS=$(echo "$MYSQL_FLOATING_IP_INFO" | awk '{print $2}')
 openstack server add floating ip mysql_instance $MYSQL_FLOATING_IP_ID
 
 # webserver
-openstack server create --image Debian10.13 --flavor d2 --availability-zone nova --port port_webserver --key-name demokey webserver_instance
+openstack server create --image Ubuntu22.04LTS --flavor d2 --port port_webserver --key-name demokey webserver_instance
 openstack floating ip create public --tag webserver_floating_ip
 WEBSERVER_FLOATING_IP_INFO=$(openstack floating ip list --long -c ID -c "Floating IP Address" -c IpAddress -c Tags -f value | grep "webserver_floating_ip")
 WEBSERVER_FLOATING_IP_ID=$(echo "$WEBSERVER_FLOATING_IP_INFO" | awk '{print $1}')
@@ -619,8 +615,8 @@ openstack server add floating ip webserver_instance $WEBSERVER_FLOATING_IP_ID
 and access them with:
 
 ```
-ssh -i my_data/keys/demokey.pem debian@$MYSQL_FLOATING_IP_ADDRESS
-ssh -i my_data/keys/demokey.pem debian@$WEBSERVER_FLOATING_IP_ADDRESS
+ssh -i my_data/keys/demokey.pem ubuntu@$MYSQL_FLOATING_IP_ADDRESS
+ssh -i my_data/keys/demokey.pem ubuntu@$WEBSERVER_FLOATING_IP_ADDRESS
 ```
 
 Both the web server and the mysql server can be installed.
