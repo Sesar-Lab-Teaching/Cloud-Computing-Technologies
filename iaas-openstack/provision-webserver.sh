@@ -1,21 +1,19 @@
 #!/bin/bash
-apt-get update
+apt update
 
-# TODO: verify whether it is possible to integrate venv
 add-apt-repository ppa:deadsnakes/ppa -y
 apt update
-apt install -y python3.11
+apt install -y python3.11 python3.11-venv python3.11-dev default-libmysqlclient-dev build-essential pkg-config jq
 
-apt -y install jq
-apt-get install -y python3-dev default-libmysqlclient-dev build-essential pkg-config python3-pip
+curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
 
 python3.11 -m venv venv
 
-pip install -r <(curl https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/ 511f3e72eb419d21cc28a09ef7896d54f5526eba/ovirt-demo-single-vm/requirements.txt)
+source venv/bin/activate
 
-# some dependencies might be modified
-# pip install -r <(curl https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/511f3e72eb419d21cc28a09ef7896d54f5526eba/ovirt-demo-single-vm/requirements.txt | \
-#     sed -e 's/mysqlclient==2.2.4/mysqlclient==2.1.1/g' -e 's/Flask-MySQLdb==2.0.0/Flask-MySQLdb==1.0.1/g')
+curl -O https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/511f3e72eb419d21cc28a09ef7896d54f5526eba/ovirt-demo-single-vm/requirements.txt
+
+pip install -r requirements.txt
     
 curl -O https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/511f3e72eb419d21cc28a09ef7896d54f5526eba/ovirt-demo-single-vm/main.py
 

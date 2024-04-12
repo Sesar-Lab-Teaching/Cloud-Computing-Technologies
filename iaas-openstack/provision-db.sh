@@ -1,5 +1,6 @@
 #!/bin/bash
 
+apt update
 apt -y install mysql-server
 
 mysql -u root <<- EOF
@@ -14,4 +15,6 @@ curl -O https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Tec
 mysql -u cct --password=cct-secret cct < seed.sql
 
 sed -i 's/bind-address		= 127.0.0.1/bind-address		= 0.0.0.0/g' /etc/mysql/mysql.conf.d/mysqld.cnf
+ufw allow 3306
+
 systemctl restart mysql

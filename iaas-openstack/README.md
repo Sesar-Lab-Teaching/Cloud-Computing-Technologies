@@ -573,12 +573,20 @@ openstack stack event list stack_name
 
 First, we need to create an SSH keypair, as described [here](#ssh-access).
 
-Then, we need to configure the network:
+Then, we need to create the security groups to allow port 3306 for mysql and port 5000 for the web server:
 
 ```
+openstack security group create mysql_sec_group
+openstack security group rule create --dst-port 3306 --protocol tcp mysql_sec_group
+openstack security group create webserver_sec_group
+openstack security group rule create --dst-port 5000 --protocol tcp webserver_sec_group
 openstack security group rule create --dst-port 22 --protocol tcp default
 openstack security group rule create --protocol icmp default
+```
 
+And now, configure the networking:
+
+```
 WEBSERVER_IP=192.168.1.3
 MYSQL_IP=192.168.1.4
 openstack network create demo_network
@@ -592,24 +600,27 @@ openstack port create --network demo_network --fixed-ip subnet=demo_subnet,ip-ad
 openstack port create --network demo_network --fixed-ip subnet=demo_subnet,ip-address=$MYSQL_IP port_mysql
 ```
 
-In the same network we deploy the db and web server:
+We can provision the servers using the `provision-db.sh` and `provision-webserver.sh` with the `--user-data` option.
+In the previously configured network, we deploy the db and web server:
 
 ```
 # mysql
-openstack server create --image Ubuntu22.04LTS --flavor d2 --port port_mysql --key-name demokey mysql_instance
+openstack server create --image Ubuntu22.04LTS --flavor d2 --port port_mysql --key-name demokey --user-data my_provisioning/provision-db.sh mysql_instance
 openstack floating ip create public --tag mysql_floating_ip
 MYSQL_FLOATING_IP_INFO=$(openstack floating ip list --long -c ID -c "Floating IP Address" -c IpAddress -c Tags -f value | grep "mysql_floating_ip")
 MYSQL_FLOATING_IP_ID=$(echo "$MYSQL_FLOATING_IP_INFO" | awk '{print $1}')
 MYSQL_FLOATING_IP_ADDRESS=$(echo "$MYSQL_FLOATING_IP_INFO" | awk '{print $2}')
 openstack server add floating ip mysql_instance $MYSQL_FLOATING_IP_ID
+openstack server add security group mysql_instance mysql_sec_group
 
 # webserver
-openstack server create --image Ubuntu22.04LTS --flavor d2 --port port_webserver --key-name demokey webserver_instance
+openstack server create --image Ubuntu22.04LTS --flavor d2 --port port_webserver --key-name demokey --user-data my_provisioning/provision-webserver.sh --property db_ip=$MYSQL_IP webserver_instance
 openstack floating ip create public --tag webserver_floating_ip
 WEBSERVER_FLOATING_IP_INFO=$(openstack floating ip list --long -c ID -c "Floating IP Address" -c IpAddress -c Tags -f value | grep "webserver_floating_ip")
 WEBSERVER_FLOATING_IP_ID=$(echo "$WEBSERVER_FLOATING_IP_INFO" | awk '{print $1}')
 WEBSERVER_FLOATING_IP_ADDRESS=$(echo "$WEBSERVER_FLOATING_IP_INFO" | awk '{print $2}')
 openstack server add floating ip webserver_instance $WEBSERVER_FLOATING_IP_ID
+openstack server add security group webserver_instance webserver_sec_group
 ```
 
 and access them with:
@@ -619,10 +630,13 @@ ssh -i my_data/keys/demokey.pem ubuntu@$MYSQL_FLOATING_IP_ADDRESS
 ssh -i my_data/keys/demokey.pem ubuntu@$WEBSERVER_FLOATING_IP_ADDRESS
 ```
 
-Both the web server and the mysql server can be installed.
+The index page of the webserver can be retrieved by issuing an HTTP request to `$WEBSERVER_FLOATING_IP_ADDRESS`:
 
-**TODO: Provisioning with user data (cloud-init)**
+```
+curl http://$WEBSERVER_FLOATING_IP_ADDRESS
+```
 
+We should see the user accounts, which works as a proof that the webserver correctly queried the mysql instance.
 
 
 
