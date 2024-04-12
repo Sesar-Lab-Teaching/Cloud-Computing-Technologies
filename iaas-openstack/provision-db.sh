@@ -5,8 +5,8 @@ apt -y install mysql-server
 
 mysql -u root <<- EOF
     CREATE DATABASE cct;
-    CREATE USER 'cct'@'localhost' IDENTIFIED BY 'cct-secret';
-    GRANT ALL PRIVILEGES ON cct.* TO 'cct'@'localhost';
+    CREATE USER 'cct'@'%' IDENTIFIED BY 'cct-secret';
+    GRANT ALL PRIVILEGES ON cct.* TO 'cct'@'%';
     FLUSH PRIVILEGES;
 EOF
 

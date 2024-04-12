@@ -571,9 +571,10 @@ openstack stack event list stack_name
 
 # Deployment of the scenario
 
-First, we need to create an SSH keypair, as described [here](#ssh-access).
+Before deploying the scenario, we need:
 
-Then, we need to create the security groups to allow port 3306 for mysql and port 5000 for the web server:
+- An SSH Keypair, as described [here](#ssh-access):
+- two security groups to allow port 3306 for the mysql server and port 5000 for the web server:
 
 ```
 openstack security group create mysql_sec_group
@@ -584,7 +585,13 @@ openstack security group rule create --dst-port 22 --protocol tcp default
 openstack security group rule create --protocol icmp default
 ```
 
-And now, configure the networking:
+- The Ubuntu cloud image for the web servers:
+
+```
+glance image-create --name Ubuntu22.04LTS --architecture amd64 --protected False --min-disk 10 --visibility public --disk-format qcow2 --min-ram 1024 --container-format bare --file my_images/jammy-server-cloudimg-amd64-disk-kvm.img
+```
+
+Now we can configure the networking:
 
 ```
 WEBSERVER_IP=192.168.1.3
@@ -636,7 +643,7 @@ The index page of the webserver can be retrieved by issuing an HTTP request to `
 curl http://$WEBSERVER_FLOATING_IP_ADDRESS
 ```
 
-We should see the user accounts, which works as a proof that the webserver correctly queried the mysql instance.
+We should see the user accounts, which serves as a proof that the webserver correctly queried the mysql instance.
 
 
 
