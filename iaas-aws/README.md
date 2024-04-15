@@ -365,6 +365,38 @@ aws ec2 authorize-security-group-ingress \
     --tag-specifications 'ResourceType=security-group-rule,Tags=[{Key=Environment,Value=demo-cct}]'
 ```
 
+To verify that the load balancer is working correctly, we can inspect the cloudwatch metrics while running the following script, which send a request every second:
+
+```
+while :
+do
+    curl {load_balancer_endpoint} > /dev/null
+    sleep 1
+done
+```
+
+---
+
+## Dynamic Scaling
+
+To dynamically scale the resource, there are mainly two policy types: target tracking scaling and simple/step scaling policies. In this example, we use the first policy type:
+
+```
+aws autoscaling put-scaling-policy \
+    --policy-name ttsl-demo-cct \
+    --auto-scaling-group-name asg-demo-cct \
+    --policy-type TargetTrackingScaling \
+    --target-tracking-configuration '{
+         "TargetValue": 30000,
+         "PredefinedMetricSpecification": {
+              "PredefinedMetricType": "ASGAverageNetworkOut"
+         }
+    }'
+```
+
+After running the above script that repeatedly sends a request to the load balancer endpoint, the instances should scale out. You can verify this by opening the section *Auto Scaling Groups*  > *asg-democct* > *Activity*, and the new instances creations is justified by the policy alarm triggered.
+
+
 
 
 
