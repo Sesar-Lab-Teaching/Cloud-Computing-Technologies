@@ -640,7 +640,7 @@ ssh -i my_data/keys/demokey.pem ubuntu@$WEBSERVER_FLOATING_IP_ADDRESS
 The index page of the webserver can be retrieved by issuing an HTTP request to `$WEBSERVER_FLOATING_IP_ADDRESS`:
 
 ```
-curl http://$WEBSERVER_FLOATING_IP_ADDRESS
+curl http://$WEBSERVER_FLOATING_IP_ADDRESS:5000
 ```
 
 We should see the user accounts, which serves as a proof that the webserver correctly queried the mysql instance.
