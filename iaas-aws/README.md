@@ -30,18 +30,9 @@ and complete the configuration with the information requested (access key, secre
 
 ## Networking
 
-To deploy the scenario, we need 2 VMs, one for the web server and one for the mysql instance. To make these VMs communicate, we can put them in a VPC (Virtual Private Cloud) and allocate an IP address (Elastic IP) to make the web server publically available.
+To deploy the scenario, we need 2 VMs, one for the web server and one for the mysql instance. To make these VMs communicate, we can put them in a VPC (Virtual Private Cloud) and allocate a public IP address to make the web server publically available.
 
-First, we create an Elastic IP address:
-
-```
-aws ec2 allocate-address \
-    --tag-specifications 'ResourceType=elastic-ip,Tags=[{Key=Environment,Value=demo-cct}]'
-```
-
-The `PublicIp` field specifies the public IP address. To see all the available Elastic IPs, run `aws ec2 describe-addresses`. Tag specifications is useful to classify resources and group them into logical sets.
-
-Then we can create a VPC:
+First, we can create a VPC:
 
 ```
 aws ec2 create-vpc \
@@ -127,13 +118,14 @@ SUBNET_ID="$(aws ec2 describe-subnets \
     --query "Subnets[*].SubnetId" \
     --output text)"
 # user-data must be written using base64 format
-curl https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/4a3e704817243249c8da509c9ddc38fefc629b50/iaas-openstack/provision-db.sh | base64 -w 0 > provision-db.txt
+PING_CHECK="while ! ping -c 1 -W 5 8.8.8.8; do echo \"Internet unreachable\"; done ;"
+curl https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/4a3e704817243249c8da509c9ddc38fefc629b50/iaas-openstack/provision-db.sh | sed -e "2 i $PING_CHECK" | base64 -w 0 > provision-db.txt
 
 # build the template for the mysql instance
 cat <<EOF > mysql_launch_template.json
 {
     "NetworkInterfaces": [{
-        "AssociatePublicIpAddress": false,
+        "AssociatePublicIpAddress": true,
         "DeviceIndex": 0,
         "SubnetId": "$SUBNET_ID",
         "Groups": ["$SG_ID"]
@@ -174,40 +166,129 @@ aws ec2 run-instances \
     --tag-specifications 'ResourceType=instance,Tags=[{Key=Environment,Value=demo-cct}]' \
     --launch-template LaunchTemplateName=mysql-template \
     --count 1
+```
 
+The only allowed connection is through ssh:
+
+```
+MYSQL_IP_ADDRESS="$(aws ec2 describe-instances \
+    --filters "Name=tag:Environment,Values=demo-cct" "Name=tag:Name,Values=mysql-instance" \
+    --query "Reservations[*].Instances[?State.Name==\`running\`].NetworkInterfaces[0].Association.PublicIp" \
+    --output text)"
+ssh -i demo_keypair.pem ubuntu@$MYSQL_IP_ADDRESS
+```
+We can do the same for the webserver, but we also need to create a rule in the security group to make sure the webserver is reachable (on port 5000) from the internet. For simplicity, we add the rule to the default security group, which is shared with the mysql instance as well, but the right approach would be craeting a separate security group with this rule and associate it exclusively to the webserver instance:
+
+```
+aws ec2 authorize-security-group-ingress \
+    --group-id "$SG_ID" \
+    --protocol tcp \
+    --port 5000 \
+    --cidr 0.0.0.0/0 \
+    --tag-specifications 'ResourceType=security-group-rule,Tags=[{Key=Environment,Value=demo-cct}]'
+```
+
+Now we can create the webserver:
+
+```
+MYSQL_PRIVATE_IP_ADDRESS="$(aws ec2 describe-instances \
+    --filters "Name=tag:Environment,Values=demo-cct" "Name=tag:Name,Values=mysql-instance" \
+    --query "Reservations[*].Instances[?State.Name==\`running\`].NetworkInterfaces[0].PrivateIpAddress" \
+    --output text)"
+curl https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/4a3e704817243249c8da509c9ddc38fefc629b50/iaas-openstack/provision-webserver.sh | sed \
+    -e "2 i $PING_CHECK" \
+    -e 's/curl -O http:\/\/169.254.169.254\/openstack\/latest\/meta_data.json//g' \
+    -e "s/DB_IP_ADDRESS=.*$/DB_IP_ADDRESS=$MYSQL_PRIVATE_IP_ADDRESS/g" \
+     | base64 -w 0 > provision-webserver.txt
+
+# build the template for the webserver
+cat <<EOF > webserver_launch_template.json
+{
+    "NetworkInterfaces": [{
+        "AssociatePublicIpAddress": true,
+        "DeviceIndex": 0,
+        "SubnetId": "$SUBNET_ID",
+        "Groups": ["$SG_ID"]
+    }],
+    "ImageId": "ami-023adaba598e661ac",
+    "InstanceType": "t2.small",
+    "KeyName": "demo-keypair",
+    "TagSpecifications": [{
+        "ResourceType": "instance",
+        "Tags": [{
+            "Key":"Environment",
+            "Value":"demo-cct"
+        },
+        {
+            "Key":"Name",
+            "Value":"webserver-instance"
+        }]
+    }],
+    "Monitoring": {
+        "Enabled": true
+    },
+    "UserData": "$(cat provision-webserver.txt)"
+}
+EOF
+
+# delete the launch template if exists, then (re)create it
+if [[ $(aws ec2 describe-launch-templates --filters "Name=tag:Environment,Values=demo-cct" --query "length(LaunchTemplates[?LaunchTemplateName==\`webserver-template\`])") -eq 1 ]]
+then
+    aws ec2 delete-launch-template --launch-template-name webserver-template
+fi
+aws ec2 create-launch-template \
+    --launch-template-name webserver-template \
+    --tag-specifications 'ResourceType=launch-template,Tags=[{Key=Environment,Value=demo-cct}]' \
+    --launch-template-data file://webserver_launch_template.json
+
+# run the instance
+aws ec2 run-instances \
+    --tag-specifications 'ResourceType=instance,Tags=[{Key=Environment,Value=demo-cct}]' \
+    --launch-template LaunchTemplateName=webserver-template \
+    --count 1
+```
+
+And can be accessed with SSH:
+
+```
+WEBSERVER_IP_ADDRESS="$(aws ec2 describe-instances \
+    --filters "Name=tag:Environment,Values=demo-cct" "Name=tag:Name,Values=webserver-instance" \
+    --query "Reservations[*].Instances[?State.Name==\`running\`].NetworkInterfaces[0].Association.PublicIp" \
+    --output text)"
+ssh -i demo_keypair.pem ubuntu@$WEBSERVER_IP_ADDRESS
+```
+
+---
+
+## Elastic IP
+
+Instead of using a generic public IP address, we can create an Elastic IP address, which is fixed and can be associated or dissociated to a running instance. In this way the final user can reference a fixed IP address even if the instance is shut down and recreated (with a different IP):
+
+```
+aws ec2 allocate-address \
+    --tag-specifications 'ResourceType=elastic-ip,Tags=[{Key=Environment,Value=demo-cct}]'
+```
+
+In the output, the `PublicIp` field specifies the public IP address. To see all the available Elastic IPs, run `aws ec2 describe-addresses`.
+
+Then we can associate it to a running instance:
+
+```
 # associate the elastic ip created before
-MYSQL_EIP_ALLOCATION_ID="$(aws ec2 describe-addresses \
+EIP_ALLOCATION_ID="$(aws ec2 describe-addresses \
     --filters "Name=tag:Environment,Values=demo-cct" \
     --query "Addresses[0].AllocationId" \
     --output text)"
-MYSQL_INSTANCE_ID="$(aws ec2 describe-instances \
-    --filters "Name=tag:Environment,Values=demo-cct" "Name=tag:Name,Values=mysql-instance" \
+INSTANCE_ID="$(aws ec2 describe-instances \
+    --filters "Name=tag:Environment,Values=demo-cct" "Name=tag:Name,Values=my-instance" \
     --query "Reservations[0].Instances[0].InstanceId" \
     --output text)"
 aws ec2 associate-address \
-    --allocation-id "$MYSQL_EIP_ALLOCATION_ID" \
-    --instance-id "$MYSQL_INSTANCE_ID"
+    --allocation-id "$EIP_ALLOCATION_ID" \
+    --instance-id "$INSTANCE_ID"
 ```
 
-After the Elastic IP association, the instance is reachable from the internet, although the only allowed connection is through ssh:
-
-```
-MYSQL_EIP_ADDRESS="$(aws ec2 describe-addresses \
-    --filters "Name=tag:Environment,Values=demo-cct" \
-    --query "Addresses[0].PublicIp" \
-    --output text)"
-ssh -i demo_keypair.pem ubuntu@$MYSQL_EIP_ADDRESS
-```
-
-
-And for the webserver:
-
-```
-curl https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/4a3e704817243249c8da509c9ddc38fefc629b50/iaas-openstack/provision-webserver.sh | base64 -w 0 > provision-webserver.txt
-```
-
-
-
+---
 
 
 
