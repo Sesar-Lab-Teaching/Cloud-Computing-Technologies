@@ -290,6 +290,82 @@ aws ec2 associate-address \
 
 ---
 
+## Monitoring
+
+AWS offers Cloudwatch, a service that can be used to monitor your resources. The easiest way to analyze the EC2 instances metrics for the *demo-cct* project is to create a resource group.
+
+Resource groups help organizing and managing the resources that belong to the same "project". We can create a resource group for the ec2 instances in the *demo-cct* environment:
+
+```
+aws resource-groups create-group \
+    --name rg-ec2-demo-cct \
+    --tags Key=Environment,Value=demo-cct \
+    --resource-query '{"Type":"TAG_FILTERS_1_0","Query":"{\"ResourceTypeFilters\":[\"AWS::EC2::Instance\"],\"TagFilters\":[{\"Key\":\"Environment\",\"Values\":[\"demo-cct\"]}]}"}'
+```
+
+From the Cloudwatch overview, we can filter by *rg-ec2-demo-cct* and the EC2 dashboard will only display the metrics for the two instances we have created.
+
+---
+
+## Auto Scaling and Load Balancing
+
+If the load of the webserver increases, a single instance might not be sufficient to handle it. AWS offers a service called Auto scaling group that allows us to dynamically scale the number of instances that are up and running:
+
+```
+aws autoscaling create-auto-scaling-group \
+    --auto-scaling-group-name asg-demo-cct \
+    --launch-template "LaunchTemplateName=webserver-template" \
+    --min-size 1 \
+    --max-size 3 \
+    --desired-capacity 2 \
+    --vpc-zone-identifier "$SUBNET_ID" \
+    --tags "Key=Environment,Value=demo-cct"
+```
+
+After that, two instances should be created because the desired capacity is 2. The next step is to provide a single endpoint to the customer and let a load balancer distribute the traffic among the instances.
+
+First, we create the load balancer:
+
+```
+aws elb create-load-balancer \
+    --load-balancer-name lb-demo-cct \
+    --tags "Key=Environment,Value=demo-cct" \
+    --subnets "$SUBNET_ID" \
+    --security-groups "$SG_ID" \
+    --listeners Protocol=HTTP,LoadBalancerPort=80,InstanceProtocol=HTTP,InstancePort=5000
+
+# configure the health check to poll for failed instances
+aws elb configure-health-check \
+    --load-balancer-name lb-demo-cct \
+    --health-check Target=HTTP:5000/,Interval=30,UnhealthyThreshold=2,HealthyThreshold=2,Timeout=5
+```
+
+Now we need to attach the load balancer to the auto scaling group, so that the load balancer can be updated on the current active instances:
+
+```
+aws autoscaling attach-load-balancers \
+    --auto-scaling-group-name asg-demo-cct \
+    --load-balancer-names lb-demo-cct
+
+# auto scaling group uses the health checks from the load balancer
+aws autoscaling update-auto-scaling-group \
+    --auto-scaling-group-name asg-demo-cct \
+    --health-check-grace-period 60 \
+    --health-check-type ELB
+```
+
+Finally, we need to update the security group of the load balancer in order to allow HTTP connections:
+
+```
+aws ec2 authorize-security-group-ingress \
+    --group-id "$SG_ID" \
+    --protocol tcp \
+    --port 80 \
+    --cidr 0.0.0.0/0 \
+    --tag-specifications 'ResourceType=security-group-rule,Tags=[{Key=Environment,Value=demo-cct}]'
+```
+
+
 
 
 
