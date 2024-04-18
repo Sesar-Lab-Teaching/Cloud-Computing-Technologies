@@ -16,30 +16,28 @@ connection = mysql.connector.connect(
 
 def handler(event, context):
     print("Lambda 'seed db' is called")
-    try:
-        sql_commands = [
-            """CREATE TABLE IF NOT EXISTS accounts (
-                id INT PRIMARY KEY,
-                name VARCHAR(40),
-                balance INT
-            )""",
-            """INSERT IGNORE INTO accounts
-                (id, name, balance)
-            VALUES
-                (1, 'Mario', 100)""",
-            """INSERT IGNORE INTO accounts
-                (id, name, balance)
-            VALUES
-                (2, 'Luigi', 200)"""
-        ]
+    
+    sql_commands = [
+        """CREATE TABLE IF NOT EXISTS accounts (
+            id INT PRIMARY KEY,
+            name VARCHAR(40),
+            balance INT
+        )""",
+        """INSERT IGNORE INTO accounts
+            (id, name, balance)
+        VALUES
+            (1, 'Mario', 100)""",
+        """INSERT IGNORE INTO accounts
+            (id, name, balance)
+        VALUES
+            (2, 'Luigi', 200)"""
+    ]
 
+    cursor = connection.cursor()
+    try:
         for sql_command in sql_commands:
-            try:
-                cursor = connection.cursor()
-                cursor.execute(sql_command)
-            finally:
-                if connection.is_connected():
-                    cursor.close()
+            cursor.execute(sql_command)
     finally:
+        connection.commit()
         if connection.is_connected():
-            connection.close()
+            cursor.close()

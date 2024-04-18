@@ -142,16 +142,6 @@ ROLE_ARN="$(aws iam list-roles \
 
 Then create the Lambda Function and associate it to the role just defined:
 
-<!-- aws lambda update-function-configuration \
-    --function-name "$LAMBDA_NAME" \
-    --vpc-config "$(cat <<-EOF
-        {
-            "SubnetIds": $SUBNET_IDS,
-            "SecurityGroupIds": $SEC_GROUP_IDS
-        }
-EOF
-    )"-->
-
 ```
 SUBNET_IDS="$(aws rds describe-db-instances \
     --db-instance-identifier demo-cct-db \
@@ -172,7 +162,7 @@ aws lambda create-function \
                 "MYSQL_HOST": "$DB_ENDPOINT",
                 "MYSQL_USER": "$MYSQL_MASTER_USERNAME",
                 "MYSQL_PASSWORD": "$MYSQL_MASTER_PASSWORD",
-                "MYSQL_DB": "$MYSQL_DATABASE",
+                "MYSQL_DATABASE": "$MYSQL_DATABASE",
                 "MYSQL_PORT": "$MYSQL_PORT"
             }
         }
@@ -233,9 +223,18 @@ REPOSITORY_ID="$(aws ecr describe-repositories \
 And deploy the image on the repository:
 
 ```
-SUBNET_ID="$()"
 docker tag "$LAMBDA_NAME:1.0.0" "$REPOSITORY_ID:latest"
 docker push "$REPOSITORY_ID:latest"
+SUBNET_IDS="$(aws rds describe-db-instances \
+    --db-instance-identifier demo-cct-db \
+    --query "DBInstances[0].DBSubnetGroup.Subnets[*].SubnetIdentifier" \
+    --output json
+)"
+SEC_GROUP_IDS="$(aws rds describe-db-instances \
+    --db-instance-identifier demo-cct-db \
+    --query "DBInstances[0].VpcSecurityGroups[*].VpcSecurityGroupId" \
+    --output json
+)"
 aws lambda create-function \
     --function-name "$LAMBDA_NAME" \
     --package-type Image \
@@ -245,9 +244,16 @@ aws lambda create-function \
                 "MYSQL_HOST": "$DB_ENDPOINT",
                 "MYSQL_USER": "$MYSQL_MASTER_USERNAME",
                 "MYSQL_PASSWORD": "$MYSQL_MASTER_PASSWORD",
-                "MYSQL_DB": "$MYSQL_DATABASE",
+                "MYSQL_DATABASE": "$MYSQL_DATABASE",
                 "MYSQL_PORT": "$MYSQL_PORT"
             }
+        }
+EOF
+    )" \
+    --vpc-config "$(cat <<-EOF
+        {
+            "SubnetIds": $SUBNET_IDS,
+            "SecurityGroupIds": $SEC_GROUP_IDS
         }
 EOF
     )" \
