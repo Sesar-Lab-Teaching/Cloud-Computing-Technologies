@@ -37,7 +37,7 @@ First, we can create a VPC:
 ```
 aws ec2 create-vpc \
     --cidr-block 10.0.0.0/28 \
-    --tag-specifications 'ResourceType=vpc,Tags=[{Key=Environment,Value=demo-cct}]'
+    --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=vpc-demo-cct},{Key=Environment,Value=demo-cct}]'
 ```
 
 and a subnet. However, the subnet requires the vpc-id, which we can query with:
@@ -88,7 +88,7 @@ aws ec2 create-tags --resources "$SG_ID" \
     --tags 'Key=Environment,Value=demo-cct'
 # create rule for SSH connections
 aws ec2 authorize-security-group-ingress \
-    --group-id "$SG_ID" \
+    --group-id "$SG_ID" \/home/maluz/Desktop/lavoro/cct-repo/paas-aws-lambda/temp.sh
     --protocol tcp \
     --port 22 \
     --cidr 0.0.0.0/0 \
