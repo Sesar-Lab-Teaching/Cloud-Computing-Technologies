@@ -1,4 +1,4 @@
-# PaaS with AWS Lambda Functions and RDS
+# PaaS with AWS Lambda Functions, RDS and API Gateway
 
 ---
 
@@ -261,4 +261,67 @@ EOF
     --tags "Key=Environment,Value=demo-cct-paas" \
     --code "ImageUri=$REPOSITORY_ID:latest" \
     --role "$ROLE_ARN"
+```
+
+---
+
+## API Gateway
+
+Up to now, the Lambda Functions are callable only by the authorized IAM users. To expose them through HTTP APIs, we can create an API Gateway and integrate it with the Lambda Functions.
+
+```
+LAMBDA_NAME=demo-cct-lambda-retrieve-accounts
+REGION="$(aws configure get region)"
+LAMBDA_ARN="$(aws lambda get-function \
+    --function-name "$LAMBDA_NAME" \
+    --query 'Configuration.FunctionArn' \
+    --output text
+)"
+
+# authorize the api gateway to call the lambda function
+aws lambda add-permission \
+    --function-name "$LAMBDA_NAME" \
+    --statement-id authorize-apigateway \
+    --action lambda:InvokeFunction \
+    --principal apigateway.amazonaws.com
+
+aws apigateway create-rest-api \
+    --name apigw-demo-cct \
+    --tags "Key=Environment,Value=demo-cct-paas"
+REST_API_ID="$(aws apigateway get-rest-apis \
+    --query "items[?name==\`apigw-demo-cct\`].id" \
+    --output text
+)"
+RESOURCE_ID="$(aws apigateway get-resources \
+    --rest-api-id "$REST_API_ID" \
+    --query "items[0].id" \
+    --output text
+)"
+aws apigateway put-method \
+    --rest-api-id "$REST_API_ID" \
+    --resource-id "$RESOURCE_ID" \
+    --http-method GET \
+    --authorization-type "NONE"
+aws apigateway put-method-response \
+    --rest-api-id "$REST_API_ID" \
+    --resource-id "$RESOURCE_ID" \
+    --http-method GET \
+    --response-parameters '{"method.response.header.Content-Type": false}' \
+    --status-code 200
+aws apigateway put-integration \
+    --rest-api-id "$REST_API_ID" \
+    --resource-id "$RESOURCE_ID" \
+    --http-method GET \
+    --type AWS \
+    --integration-http-method POST \
+    --uri "arn:aws:apigateway:${REGION}:lambda:path/2015-03-31/functions/${LAMBDA_ARN}/invocations"
+aws apigateway put-integration-response \
+    --rest-api-id "$REST_API_ID" \
+    --resource-id "$RESOURCE_ID" \
+    --http-method GET \
+    --status-code 200 \
+    --selection-pattern "" \
+    --response-parameters "{\"method.response.header.Content-Type\": \"'text/html'\"}" \
+    --response-templates '{"text/html": "$input.path(\"$\")"}'
+aws apigateway create-deployment --rest-api-id "$REST_API_ID" --stage-name demo-cct
 ```
