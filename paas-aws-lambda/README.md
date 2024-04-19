@@ -11,37 +11,6 @@ Sources:
 
 As opposed to the IaaS deployment, where the database is deployed on an EC2 instance, we can use RDS, a DBaaS service (DataBase-as-a-Service):
 
-<!-- aws ec2 create-vpc \
-    --cidr-block 10.0.0.16/28 \
-    --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=vpc-demo-cct-paas},{Key=Environment,Value=demo-cct-paas}]'
-VPC_ID=$(aws ec2 describe-vpcs \
-    --filters "Name=tag:Name,Values=vpc-demo-cct-paas" \
-    --query "Vpcs[0].VpcId" \
-    --output text)
-aws ec2 create-subnet \
-    --vpc-id $VPC_ID \
-    --cidr-block 10.0.0.16/28 \
-    --tag-specifications 'ResourceType=subnet,Tags=[{Key=Environment,Value=demo-cct-paas}]'
-
-# the default security group already allow all traffic generated within the same security group (i.e. by all hosts placed in the same VPC)
-SG_ID="$(aws ec2 describe-security-groups \
-    --filters "Name=vpc-id,Values=$VPC_ID" \
-    --query "SecurityGroups[*].GroupId" \
-    --output text)"
-aws ec2 create-tags --resources "$SG_ID" \
-    --tags 'Key=Environment,Value=demo-cct-paas'
-
-# but we need a subnet group to place the db instance in the correct subnet
-SUBNET_ID="$(aws ec2 describe-subnets \
-    --filter "Name=vpc-id,Values=$VPC_ID" \
-    --query "Subnets[0].SubnetId" \
-    --output text)"
-aws rds create-db-subnet-group \
-    --db-subnet-group-name subnet-group-demo-cct-paas \
-    --db-subnet-group-description "Subnet group for the PaaS demo" \
-    --tags 'Key=Environment,Value=demo-cct-paas' \
-    --subnet-ids "$SUBNET_ID" -->
-
 A DB instance can be built with:
 
 ```
@@ -261,6 +230,14 @@ EOF
     --tags "Key=Environment,Value=demo-cct-paas" \
     --code "ImageUri=$REPOSITORY_ID:latest" \
     --role "$ROLE_ARN"
+
+# authorize the api gateway to call the lambda function
+aws lambda add-permission \
+    --function-name "$LAMBDA_NAME" \
+    --statement-id authorize-apigateway \
+    --action lambda:InvokeFunction \
+    --principal apigateway.amazonaws.com
+
 ```
 
 ---
@@ -277,13 +254,6 @@ LAMBDA_ARN="$(aws lambda get-function \
     --query 'Configuration.FunctionArn' \
     --output text
 )"
-
-# authorize the api gateway to call the lambda function
-aws lambda add-permission \
-    --function-name "$LAMBDA_NAME" \
-    --statement-id authorize-apigateway \
-    --action lambda:InvokeFunction \
-    --principal apigateway.amazonaws.com
 
 aws apigateway create-rest-api \
     --name apigw-demo-cct \
@@ -324,4 +294,46 @@ aws apigateway put-integration-response \
     --response-parameters "{\"method.response.header.Content-Type\": \"'text/html'\"}" \
     --response-templates '{"text/html": "$input.path(\"$\")"}'
 aws apigateway create-deployment --rest-api-id "$REST_API_ID" --stage-name demo-cct
+```
+
+---
+
+## Orchestration with Cloudformation
+
+Scripting all the AWS commands is a first form of IaC (Infrastructure as Code), but AWS provides a more efficient way to do that: Cloudformation. It is an orchestration service that allows us to manage an entire infrastructure (or just a part of it) using template files. These files should be versioned and contain the description of how the resources should be created and initialized. The main benefits offered by AWS Cloudformation are:
+
+- Scripting < Cloudformation because Cloudformation is a declarative language, far easier to understand and more efficient
+- Automate the creation/disposal of entire stacks of resources
+- Resource management is versioned
+- Template cost estimation (`aws cloudformation estimate-template-cost`)
+
+For example, we can create a Cloudformation file for the API Gateway configuration, which includes several API calls.
+
+First, we should validate it with:
+
+```
+aws cloudformation validate-template \
+    --template-body file://api_gw_template.yml
+```
+
+Then we can create it:
+
+```
+LAMBDA_NAME=demo-cct-lambda-retrieve-accounts
+LAMBDA_ARN="$(aws lambda get-function \
+    --function-name "$LAMBDA_NAME" \
+    --query 'Configuration.FunctionArn' \
+    --output text
+)"
+aws cloudformation create-stack \
+    --template-body file://api_gw_template.yml \
+    --stack-name stack-api-gw-demo-cct \
+    --parameters "ParameterKey=RetrieveAccountLambdaArn,ParameterValue=$LAMBDA_ARN"
+```
+
+And delete it with:
+
+```
+aws cloudformation delete-stack \
+    --stack-name stack-api-gw-demo-cct
 ```
