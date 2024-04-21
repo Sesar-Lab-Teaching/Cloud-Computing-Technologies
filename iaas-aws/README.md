@@ -122,13 +122,15 @@ PING_CHECK="while ! ping -c 1 -W 5 8.8.8.8; do echo \"Internet unreachable\"; do
 curl https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/4a3e704817243249c8da509c9ddc38fefc629b50/iaas-openstack/provision-db.sh | sed -e "2 i $PING_CHECK" | base64 -w 0 > provision-db.txt
 
 # build the template for the mysql instance
+# Note: the private ip address is fixed to 10.0.0.7 so that the webservers know that in advance
 cat <<EOF > mysql_launch_template.json
 {
     "NetworkInterfaces": [{
         "AssociatePublicIpAddress": true,
         "DeviceIndex": 0,
         "SubnetId": "$SUBNET_ID",
-        "Groups": ["$SG_ID"]
+        "Groups": ["$SG_ID"],
+        "PrivateIpAddress": "10.0.0.7"
     }],
     "ImageId": "ami-023adaba598e661ac",
     "InstanceType": "t2.small",
