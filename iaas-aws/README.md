@@ -381,19 +381,20 @@ done
 
 ## Dynamic Scaling
 
-To dynamically scale the resource, there are mainly two policy types: target tracking scaling and simple/step scaling policies. In this example, we use the first policy type:
+To dynamically scale the resource, there are mainly two policy types: target tracking scaling and simple/step scaling policies. In this example, we use a target tracking scaling that tries to keep the number of requests handled by a single instance to 10 per minute.
 
 ```
+# we have to manually enable the group metrics 
+aws autoscaling enable-metrics-collection \
+    --auto-scaling-group-name asg-demo-cct \
+    --granularity "1Minute" \
+    --metrics "GroupInServiceInstances"
+
 aws autoscaling put-scaling-policy \
     --policy-name ttsl-demo-cct \
     --auto-scaling-group-name asg-demo-cct \
     --policy-type TargetTrackingScaling \
-    --target-tracking-configuration '{
-         "TargetValue": 30000,
-         "PredefinedMetricSpecification": {
-              "PredefinedMetricType": "ASGAverageNetworkOut"
-         }
-    }'
+    --target-tracking-configuration file://dynamic_scaling_config.json
 ```
 
 After running the above script that repeatedly sends a request to the load balancer endpoint, the instances should scale out. You can verify this by opening the section *Auto Scaling Groups*  > *asg-democct* > *Activity*, and the new instances creations is justified by the policy alarm triggered.

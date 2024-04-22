@@ -1,0 +1,49 @@
+{
+    "CustomizedMetricSpecification": {
+        "Metrics": [
+            {
+                "Label": "Get the number of requests received by the Load balancer",
+                "Id": "m1",
+                "MetricStat": {
+                    "Metric": {
+                        "MetricName": "RequestCount",
+                        "Namespace": "AWS/ELB",
+                        "Dimensions": [
+                            {
+                                "Name": "LoadBalancerName",
+                                "Value": "lb-demo-cct"
+                            }
+                        ]
+                    },
+                    "Stat": "Sum"
+                },
+                "ReturnData": false
+            },
+            {
+                "Label": "Get the group size (the number of InService instances)",
+                "Id": "m2",
+                "MetricStat": {
+                    "Metric": {
+                        "MetricName": "GroupInServiceInstances",
+                        "Namespace": "AWS/AutoScaling",
+                        "Dimensions": [
+                            {
+                                "Name": "AutoScalingGroupName",
+                                "Value": "asg-demo-cct"
+                            }
+                        ]
+                    },
+                    "Stat": "Average"
+                },
+                "ReturnData": false
+            },
+            {
+                "Label": "Calculate the amount of requests handled per instance",
+                "Id": "e1",
+                "Expression": "m1 / m2",
+                "ReturnData": true
+            }
+        ]
+    },
+    "TargetValue": 10
+}
