@@ -337,3 +337,14 @@ And delete it with:
 aws cloudformation delete-stack \
     --stack-name stack-api-gw-demo-cct
 ```
+
+---
+
+## Monitoring
+
+The output of the Stack deployment specifies the API Gateway endpoint that the customer should use to access the implemented REST APIs. To verify that the Lambda Function is eventually called, we can test an API request from the AWS console or using the CLI command `aws apigateway test-invoke-method`. The alternative is monitoring the logs and metrics from Cloudwatch. By default, the available metrics are:
+
+- Invocations
+- Duration
+- Errors
+- Throttles
