@@ -182,11 +182,32 @@ You can still list containers running on a node with `docker container ps` and t
 We can set some constraints on the node where tasks run, like the node role:
 
 ```
+# manager
 docker service create \
     --constraint node.role==manager \
     ...
 ```
 
+Once you have created a service with a published port, it is available on all the nodes in the swarm (even if that node does not have a task belonging to the service). For example, if you are running a service for a web app that exposes the port 8080 and is currently running on `worker1`, you can access it from `worker2` and `manager1` too (on port 8080). This feature is called *Ingress Swarm Load Balancer*, as traffic comes into your cluster, you can hit any node, but it will be balanced to wherever the service is running at.
+
 ---
 
+## Docker Stack
 
+Just like a container can be defined inside a Docker-compose, a service can be defined in a Docker stack. Conceptually a Docker-compose file and a Docker-stack file has the same structure, although Docker stack has additional features. The main difference between them is networking: Docker-compose sets up a bridge network, while Docker stack creates an overlay network.
+
+To create a new stack:
+
+```
+docker stack deploy -c stack_file.yml stack_name
+```
+
+To get the current stack status:
+
+```
+docker stack ps stack_name
+```
+
+To update the deployment after you change the `stack_file.yml`, just re-run `docker stack deploy` with the same parameters. If you want to deploy twice the stack, you just need to use two different stack names.
+
+If we drain one node (`docker node update --availability=drain`), there is a reconciliation process: the tasks in that node are shut down and restored (recreated) in a different node. This happens automatically because Docker Swarm monitors the desired state represented in the stack file and updates the deployment when the current state is different from the desired one.
