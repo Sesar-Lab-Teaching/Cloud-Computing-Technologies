@@ -1,0 +1,31 @@
+services:
+  db:
+    image: mysql
+    command: --default-authentication-plugin=mysql_native_password
+    env_file:
+      - .env
+    environment:
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/mysql-password
+      - MYSQL_PASSWORD_FILE=/run/secrets/mysql-password
+    healthcheck:
+      test: mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER --password=$$MYSQL_PASSWORD
+      start_period: 5s
+      interval: 3s
+      timeout: 5s
+      retries: 6
+  app:
+    image: "$REGISTRY_IP:$REGISTRY_PORT/bank-app:1.0"
+    deploy:
+      mode: replicated
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+    env_file:
+      - .env
+    ports:
+      - "5000:5000"
+
+secrets:
+  mysql-password:
+    file: ./mysql_pwd.secret

@@ -1,1 +1,2 @@
-.vagrant/
+vagrant_setup/
+!vagrant_setup/Vagrantfile

@@ -188,7 +188,7 @@ docker service create \
     ...
 ```
 
-Once you have created a service with a published port, it is available on all the nodes in the swarm (even if that node does not have a task belonging to the service). For example, if you are running a service for a web app that exposes the port 8080 and is currently running on `worker1`, you can access it from `worker2` and `manager1` too (on port 8080). This feature is called *Ingress Swarm Load Balancer*, as traffic comes into your cluster, you can hit any node, but it will be balanced to wherever the service is running at.
+Once you have created a service with a published port, it is available on all the nodes in the swarm (even if that node does not have a task belonging to the service). For example, if you are running a service for a web app that exposes the port 8080 and is currently running on `worker1`, you can access it from `worker2` and `manager1` too (on port 8080). This feature is called *Ingress Swarm Load Balancer*, as traffic comes into your cluster, you can hit any node, but it will be balanced to wherever the service is running at. The first network that the internet traffic encounters is the Ingress network, where the Load Balancer distributes the load. Ingress network is meant for published ports, not for general communication between services.
 
 ---
 
@@ -211,3 +211,82 @@ docker stack ps stack_name
 To update the deployment after you change the `stack_file.yml`, just re-run `docker stack deploy` with the same parameters. If you want to deploy twice the stack, you just need to use two different stack names.
 
 If we drain one node (`docker node update --availability=drain`), there is a reconciliation process: the tasks in that node are shut down and restored (recreated) in a different node. This happens automatically because Docker Swarm monitors the desired state represented in the stack file and updates the deployment when the current state is different from the desired one.
+
+When we create a stack, a default network is created for communication between containers. So, to sum up, each node has 3 network interfaces:
+
+- One for the public IP address
+- One Virtual interface that is mapped to an IP in the Ingress network
+- One Virtual interface that is mapped to an IP in the service network
+
+Each service also has a Virtual IP associated, which we should use instead of the node IPs. Docker Swarm allows us to make a request to a service using a Virtual hostname (which is the service name by default) instead of the Virtual IP.
+
+---
+
+## Volumes, Configs, and Secrets
+
+Configs and secrets are special types of volumes. As for [secrets](https://docs.docker.com/engine/swarm/secrets/):
+
+> In terms of Docker Swarm services, a secret is a blob of data, such as a password, SSH private key, SSL certificate, or another piece of data that should not be transmitted over a network or stored unencrypted in a Dockerfile or in your application's source code. You can use Docker secrets to centrally manage this data and securely transmit it to only those containers that need access to it. Secrets are encrypted during transit and at rest in a Docker swarm. A given secret is only accessible to those services which have been granted explicit access to it, and only while those service tasks are running.
+
+> When you grant a newly-created or running service access to a secret, the decrypted secret is mounted into the container in an in-memory filesystem. The location of the mount point within the container defaults to `/run/secrets/<secret_name>` in Linux containers, or `C:\ProgramData\Docker\secrets` in Windows containers. You can also specify a custom location.
+
+Regarding [configs]():
+
+> Docker swarm service configs allow you to store non-sensitive information, such as configuration files, outside a service's image or running containers. This allows you to keep your images as generic as possible, without the need to bind-mount configuration files into the containers or use environment variables.
+
+> Configs operate in a similar way to secrets, except that they are not encrypted at rest and are mounted directly into the container's filesystem without the use of RAM disks. Configs can be added or removed from a service at any time, and services can share a config.
+
+---
+
+## Deploying the Bank Scenario
+
+For the Bank scenario, we need 1 MySQL container and 2 instances (replicas) of the WebServer. First, we need to copy on the manager node the following files:
+
+- `main.py`
+- `Dockerfile`
+- `requirements.txt`
+- `seed.sql`
+- `docker-compose.yml`
+- `.dockerignore`
+- `mysql_pwd.secret`
+
+If you are using Vagrant, you just need to copy them in the same folder where the `Vagrantfile` is placed; that folder is mounted on the `/vagrant` folder in the guest machine. With Play with Docker, you may need to copy them using `sftp` for example (or just copy & paste the content file by file).
+
+Since you cannot create on-the-fly images in the Docker-compose file (so the web application image must be available on a Docker registry), we need to create a local Docker registry in the manager node and push the image to it:
+
+```
+# manager
+cd /vagrant/deploy # cd on the folder where you have copied the files
+MANAGER_IP="$(docker node inspect self --format '{{ .Status.Addr }}')"
+docker run -d -p 5001:5000 --restart always --name registry registry:2
+docker build -t bank-app:1.0 -t "$MANAGER_IP:5001/bank-app:1.0" .
+```
+
+Before pushing the image, we need to mark the manager registry as an unsafe registry due to the absence of HTTPS support:
+
+```
+# only workers
+MANAGER_IP="$(docker info -f '{{ (index .Swarm.RemoteManagers 0).Addr }}' | cut -d':' -f1)"
+
+# managers and workers (all nodes)
+echo """{
+    \"insecure-registries\" : [ \"$MANAGER_IP:5001\" ]
+}""" | sudo tee /etc/docker/daemon.json
+
+sudo systemctl restart docker # or follow this for play with docker: https://stackoverflow.com/questions/55983977/how-to-restart-play-with-docker-docker-daemon
+```
+
+Now we can push the image:
+
+```
+docker push "$MANAGER_IP:5001/bank-app:1.0"
+```
+
+Next create a stack with:
+
+```
+# manager
+REGISTRY_IP="$MANAGER_IP" REGISTRY_PORT=5001 docker stack deploy -c docker-compose.yml bank-stack
+```
+
+
