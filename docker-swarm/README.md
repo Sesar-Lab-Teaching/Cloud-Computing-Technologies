@@ -282,6 +282,8 @@ Now we can push the image:
 docker push "$MANAGER_IP:5001/bank-app:1.0"
 ```
 
+Before deploying the stack, we need to configure all the nodes with the `.env` file.
+
 Next create a stack with:
 
 ```
@@ -289,4 +291,5 @@ Next create a stack with:
 REGISTRY_IP="$MANAGER_IP" REGISTRY_PORT=5001 docker stack deploy -c docker-compose.yml bank-stack
 ```
 
+The services should be up and running, test it by invoking the webserver endpoint `http://{ANY_IP_IN_THE_CLUSTER}:5000`
 
