@@ -25,6 +25,39 @@ services:
       retries: 6
     secrets:
       - mysql-password
+
+  seeder:
+    image: mysql
+    entrypoint:
+      - bash
+      - -c
+      - |
+        mysqladmin ping -h $$MYSQL_HOST \
+          -u $$MYSQL_USER \
+          --password=$$(< /run/secrets/mysql-password) && \
+        mysql --host=$$MYSQL_HOST \
+          -u $$MYSQL_USER \
+          --password=$$(< /run/secrets/mysql-password) \
+          -D $$MYSQL_DATABASE \
+          -e 'source /db-seed-sql' || \
+        exit 1
+    environment:
+      <<: *shared-env
+      MYSQL_HOST: db
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 6s
+        max_attempts: 10
+    depends_on:
+      - db
+    secrets:
+      - mysql-password
+    configs:
+      - db-seed-sql
+
   app:
     image: "$REGISTRY_IP:$REGISTRY_PORT/bank-app:1.0"
     deploy:
@@ -44,3 +77,7 @@ services:
 secrets:
   mysql-password:
     file: ./mysql_pwd.secret
+
+configs:
+  db-seed-sql:
+    file: ./seed.sql

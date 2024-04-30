@@ -242,13 +242,13 @@ Regarding [configs]():
 
 For the Bank scenario, we need 1 MySQL container and 2 instances (replicas) of the WebServer. First, we need to copy on the manager node the following files:
 
-- `main.py`
+- `.dockerignore`
+- `docker-compose.yml`
 - `Dockerfile`
+- `main.py`
+- `mysql_pwd.secret`
 - `requirements.txt`
 - `seed.sql`
-- `docker-compose.yml`
-- `.dockerignore`
-- `mysql_pwd.secret`
 
 If you are using Vagrant, you just need to copy them in the same folder where the `Vagrantfile` is placed; that folder is mounted on the `/vagrant` folder in the guest machine. With Play with Docker, you may need to copy them using `sftp` for example (or just copy & paste the content file by file).
 
@@ -288,7 +288,7 @@ Next create a stack with:
 
 ```
 # manager
-REGISTRY_IP="$MANAGER_IP" REGISTRY_PORT=5001 docker stack deploy -c docker-compose.yml bank-stack
+REGISTRY_IP="$MANAGER_IP" REGISTRY_PORT=5001 docker stack deploy -c docker-compose.yml bank
 ```
 
 The services should be up and running, test it by invoking the webserver endpoint `http://{ANY_IP_IN_THE_CLUSTER}:5000`
