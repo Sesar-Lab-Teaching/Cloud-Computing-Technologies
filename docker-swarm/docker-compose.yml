@@ -7,7 +7,6 @@ x-common-env: &shared-env
 services:
   db:
     image: mysql
-    command: --default-authentication-plugin=mysql_native_password
     environment:
       <<: *shared-env
       MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql-password

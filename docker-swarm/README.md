@@ -252,6 +252,8 @@ For the Bank scenario, we need 1 MySQL container and 2 instances (replicas) of t
 
 If you are using Vagrant, you just need to copy them in the same folder where the `Vagrantfile` is placed; that folder is mounted on the `/vagrant` folder in the guest machine. With Play with Docker, you may need to copy them using `sftp` for example (or just copy & paste the content file by file).
 
+The `docker-compose.yml` file contains the necessary instructions to provision the containers (including the replicas). A docker compose file for `docker stack` usually includes a further command: the `deploy`. It accepts a map with the configurations for the replica, deployment mode, restart policy, etc.
+
 Since you cannot create on-the-fly images in the Docker-compose file (so the web application image must be available on a Docker registry), we need to create a local Docker registry in the manager node and push the image to it:
 
 ```
@@ -291,5 +293,5 @@ Next create a stack with:
 REGISTRY_IP="$MANAGER_IP" REGISTRY_PORT=5001 docker stack deploy -c docker-compose.yml bank
 ```
 
-The services should be up and running, test it by invoking the webserver endpoint `http://{ANY_IP_IN_THE_CLUSTER}:5000`
+The services should be up and running, test it by invoking the webserver endpoint `http://{ANY_IP_IN_THE_CLUSTER}:5000`. The *Hostname* field in the HTML page should change on every page reload: this is the effect of the Swarm Load balancer that applies a round robin policy on the nodes hosting the webserver tasks.
 
