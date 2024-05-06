@@ -220,6 +220,12 @@ When we create a stack, a default network is created for communication between c
 
 Each service also has a Virtual IP associated, which we should use instead of the node IPs. Docker Swarm allows us to make a request to a service using a Virtual hostname (which is the service name by default) instead of the Virtual IP.
 
+To delete a stack:
+
+```
+docker stack rm stack_name
+```
+
 ---
 
 ## Volumes, Configs, and Secrets
@@ -294,4 +300,10 @@ REGISTRY_IP="$MANAGER_IP" REGISTRY_PORT=5001 docker stack deploy -c docker-compo
 ```
 
 The services should be up and running, test it by invoking the webserver endpoint `http://{ANY_IP_IN_THE_CLUSTER}:5000`. The *Hostname* field in the HTML page should change on every page reload: this is the effect of the Swarm Load balancer that applies a round robin policy on the nodes hosting the webserver tasks.
+
+### Scaling the Web server
+
+To scale the webserver, we just need to update the `docker-compose.yml` file and run the same `docker stack deploy` command and specify the **same** stack name. In this way, Docker Swarm recognizes that you want to update the deploy and creates a new instance of the webserver container on one of the available nodes.
+
+### Re
 

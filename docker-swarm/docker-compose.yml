@@ -21,7 +21,9 @@ services:
       start_period: 5s
       interval: 3s
       timeout: 5s
-      retries: 6
+      retries: 8
+    volumes:
+      - mysql_data:/var/lib/mysql
     secrets:
       - mysql-password
 
@@ -64,7 +66,6 @@ services:
       replicas: 2
       restart_policy:
         condition: on-failure
-        delay: 5s
     environment:
       <<: *shared-env
       MYSQL_HOST: db
@@ -80,3 +81,6 @@ secrets:
 configs:
   db-seed-sql:
     file: ./seed.sql
+
+volumes:
+  mysql_data:
