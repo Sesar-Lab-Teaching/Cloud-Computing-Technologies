@@ -142,5 +142,4 @@ ENV/
 .mypy_cache/
 
 # custom
-seed.sh
 seed.sql

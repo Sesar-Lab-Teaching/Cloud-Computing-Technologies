@@ -46,7 +46,7 @@ Dockercompose automatically creates a network shared between the defined service
 
 The only port we need to map is `5000`, which is exposed by the webserver. On the other hand, the MySQL server must be unreachable from the outside.
 
-### Healtcheck and dependencies
+### Healthcheck and dependencies
 
 When the MySQL containers starts, it is not immediately ready to accept connections from the webserver. The container is marked as *healthy* when it satisfies the `healthcheck`: for at most 6 times, the `test` command pings the MySQL server for a SQL connection until it receives a successful response. The timeout for each ping is 5 seconds and the delay between 2 consecutive pings is 3 seconds.
 
@@ -57,6 +57,11 @@ depends_on:
   db:
     condition: service_healthy
 ```
+
+In general, health checks are important for at least 2 reasons:
+
+- Docker can use the health check to automatically restart containers that have failed. This ensures that your application stays online and available even if individual components encounter issues.
+- Container orchestration platforms like Docker Swarm and Kubernetes use health checks to determine the readiness and availability of containers. This information is used for load balancing and service discovery, ensuring that requests are routed only to healthy instances.
 
 ---
 

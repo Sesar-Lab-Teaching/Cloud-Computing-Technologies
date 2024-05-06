@@ -1,11 +1,7 @@
-
 import os
-from dotenv import load_dotenv
 
 from flask import Flask, jsonify
 from flask_mysqldb import MySQL
-
-load_dotenv()
 
 app = Flask(__name__)
 

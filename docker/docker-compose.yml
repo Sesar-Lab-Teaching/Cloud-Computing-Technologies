@@ -2,7 +2,6 @@ services:
   db:
     image: mysql
     container_name: mysql-cct
-    command: --default-authentication-plugin=mysql_native_password
     env_file:
       - .env
     healthcheck:
@@ -10,7 +9,10 @@ services:
       start_period: 5s
       interval: 3s
       timeout: 5s
-      retries: 6
+      retries: 8
+    volumes:
+      - mysql_data:/var/lib/mysql
+
   seeder:
     image: mysql
     container_name: mysql-seeder-ctt1
@@ -22,16 +24,22 @@ services:
       ]
     env_file:
       - .env
+    restart: on-failure
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./seed.sql:/seed.sql
+
   app:
     build:
       context: .
+    image: web-server
     container_name: app-cct1
     env_file:
       - .env
     ports:
       - "5000:5000"
+
+volumes:
+  mysql_data:
