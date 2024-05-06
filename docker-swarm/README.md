@@ -244,6 +244,14 @@ Regarding [configs]():
 
 ---
 
+## Volumes
+
+Docker Swarm manages volumes in a distributed manner, ensuring that a single named volume is accessible to all replicas of a service, regardless of the node they are running on. This allows for data consistency and ensures that all replicas can access the same data volume, regardless of their location in the cluster.
+
+Therefore, when you deploy a service with replicated mode and specify a named volume, Docker Swarm creates the volume once and makes it available to all replicas, allowing them to share data using that volume.
+
+---
+
 ## Deploying the Bank Scenario
 
 For the Bank scenario, we need 1 MySQL container and 2 instances (replicas) of the WebServer. First, we need to copy on the manager node the following files:
@@ -304,6 +312,3 @@ The services should be up and running, test it by invoking the webserver endpoin
 ### Scaling the Web server
 
 To scale the webserver, we just need to update the `docker-compose.yml` file and run the same `docker stack deploy` command and specify the **same** stack name. In this way, Docker Swarm recognizes that you want to update the deploy and creates a new instance of the webserver container on one of the available nodes.
-
-### Re
-
