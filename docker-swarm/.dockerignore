@@ -142,5 +142,7 @@ ENV/
 .mypy_cache/
 
 # custom
-seed.sh
+vagrant_setup/
+mysql_pwd.secret
 seed.sql
+README.md
