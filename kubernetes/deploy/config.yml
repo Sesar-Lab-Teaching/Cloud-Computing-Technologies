@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-config
+data:
+  seed.sql: |
+    CREATE TABLE IF NOT EXISTS accounts (
+        id INT PRIMARY KEY,
+        name VARCHAR(40),
+        balance INT
+    );
+
+    INSERT IGNORE INTO accounts
+        (id, name, balance)
+    VALUES
+        (1, 'Mario', 100);
+
+    INSERT IGNORE INTO accounts
+        (id, name, balance)
+    VALUES
+        (2, 'Luigi', 200);
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-public-env
+data:
+  MYSQL_USER: cct1
+  MYSQL_DATABASE: cct1
+  MYSQL_PORT: "3306"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret
+data:
+  MYSQL_PASSWORD: bXlzcWxwYXNzd29yZAo=
+  MYSQL_ROOT_PASSWORD: bXlzcWxyb290cGFzc3dvcmQK

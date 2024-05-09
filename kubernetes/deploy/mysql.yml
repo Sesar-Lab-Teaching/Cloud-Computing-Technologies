@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+  labels:
+    app: mysql
+spec:
+  ports:
+    - port: 3306
+      targetPort: mysql-port
+      name: mysql-service-port
+  clusterIP: None
+  type: ClusterIP
+  selector:
+    app: mysql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql-statefulset
+  labels:
+    app: mysql
+spec:
+  serviceName: mysql-service
+  replicas: 1
+  minReadySeconds: 10
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      volumes:
+        - name: mysql-secret-volume
+          secret:
+            secretName: mysql-secret
+            items:
+              - key: MYSQL_PASSWORD
+                path: ./mysql_password
+              - key: MYSQL_ROOT_PASSWORD
+                path: ./mysql_root_password
+      containers:
+        - name: mysql
+          image: mysql:8
+          ports:
+            - containerPort: 3306
+              name: mysql-port
+          volumeMounts:
+            - name: mysql-data-volume
+              mountPath: /var/lib/mysql
+            - name: mysql-secret-volume
+              readOnly: true
+              mountPath: "/etc/secrets"
+          envFrom:
+            - configMapRef:
+                name: mysql-public-env
+          env:
+            - name: MYSQL_PASSWORD_FILE
+              value: /etc/secrets/mysql_password
+            - name: MYSQL_ROOT_PASSWORD_FILE
+              value: /etc/secrets/mysql_root_password
+          readinessProbe:
+            exec:
+              command:
+                - "/bin/sh"
+                - "-c"
+                - "mysqladmin ping -h 127.0.0.1 -u $MYSQL_USER --password=$(cat /etc/secrets/mysql_password)"
+            initialDelaySeconds: 10
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: mysql-data-volume
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        # storageClassName: standard
+        resources:
+          requests:
+            storage: 5Gi

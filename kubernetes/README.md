@@ -16,6 +16,30 @@ minikube start --nodes 2 -p kube-demo
 alias kubectl="minikube -p kube-demo kubectl --"
 ```
 
+On system restart, you need to restart the Minikube as well, running `minikube start -p kube-demo`.
+
+To verify that the cluster has been created:
+
+```
+minikube profile list
+```
+
+Should display a similar table:
+
+```
+|-----------|-----------|---------|--------------|------|---------|---------|-------|--------|
+|  Profile  | VM Driver | Runtime |      IP      | Port | Version | Status  | Nodes | Active |
+|-----------|-----------|---------|--------------|------|---------|---------|-------|--------|
+| kube-demo | docker    | docker  | 192.168.49.2 | 8443 | v1.28.3 | Running |     2 |        |
+|-----------|-----------|---------|--------------|------|---------|---------|-------|--------|
+```
+
+To examine the status of the cluster (and its nodes):
+
+```
+minikube status -p kube-demo
+```
+
 ---
 
 ## K8S Architecture
@@ -95,7 +119,64 @@ Although each Pod has a unique IP address, those IPs are not exposed outside the
 
 Services have an integrated load-balancer that will distribute network traffic to all Pods of an exposed Deployment. Services will monitor continuously the running Pods using endpoints, to ensure the traffic is sent only to available Pods.
 
+Kubernetes automatically creates a DNS entry for each Service. The DNS name for a Service follows the format: `<service-name>.<namespace>.svc.cluster.local`. You can use this DNS name to access the Service from within the cluster.
+
+"Normal" (not headless) Services are assigned DNS A and/or AAAA records, depending on the IP family or families of the Service, with a name of the form `<service-name>.<namespace>.svc.cluster.local`. This resolves to the cluster IP of the Service.
+
+Headless Services (without a cluster IP) Services are also assigned DNS A and/or AAAA records, with a name of the form `<service-name>.<namespace>.svc.cluster.local`. Unlike normal Services, this resolves to the set of IPs of all of the Pods selected by the Service. Clients are expected to consume the set or else use standard round-robin selection from the set.
+
+### Headless Service
+
+With a Standard Service of type *ClusterIP*, the pods included in that service are reachable through a virtual IP Address within the Kubernetes cluster. Kubernetes assigns a single virtual IP address to the Service, which acts as a stable endpoint for accessing the pods. Under the hood, Kubernetes performs load balancing among the pods registered to the service, distributing incoming traffic across them evenly.
+
+From: [What is a headless service, what does it do/accomplish, and what are some legitimate use cases for it?](https://stackoverflow.com/questions/52707840/what-is-a-headless-service-what-does-it-do-accomplish-and-what-are-some-legiti)
+
+> Each connection to the service is forwarded to one randomly selected backing pod. But what if the client needs to connect to all of those pods? What if the backing pods themselves need to each connect to all the other backing pods. Connecting through the service clearly isn’t the way to do this. What is? 
+<br /> <br /> 
+For a client to connect to all pods, it needs to figure out the IP of each individual pod. One option is to have the client call the Kubernetes API server and get the list of pods and their IP addresses through an API call, but because you should always strive to keep your apps Kubernetes-agnostic, using the API server isn’t ideal.
+<br /> <br /> 
+Luckily, Kubernetes allows clients to discover pod IPs through DNS lookups. Usually, when you perform a DNS lookup for a service, the DNS server returns a single IP — the service’s cluster IP. But if you tell Kubernetes you don’t need a cluster IP for your service (you do this by setting the clusterIP field to None in the service specification ), the DNS server will return the pod IPs instead of the single service IP. Instead of returning a single DNS A record, the DNS server will return multiple A records for the service, each pointing to the IP of an individual pod backing the service at that moment. Clients can therefore do a simple DNS A record lookup and get the IPs of all the pods that are part of the service. The client can then use that information to connect to one, many, or all of them.
+<br /> <br /> 
+Setting the `clusterIP` field in a service spec to `None` makes the service headless, as Kubernetes won’t assign it a cluster IP through which clients could connect to the pods backing it.
+
+---
+
+## StatefulSet
+
+StatefulSets are intended to be used with stateful applications and distributed systems. However, the administration of stateful applications and distributed systems on Kubernetes is a broad, complex topic.
+
+StatefulSet Pods have a unique identity that consists of an ordinal, a stable network identity, and stable storage. The identity sticks to the Pod, regardless of which node it's (re)scheduled on. For a StatefulSet with N replicas, each Pod in the StatefulSet will be assigned an integer ordinal, that is unique over the Set. By default, pods will be assigned ordinals from 0 up through N-1.
+
+Each Pod in a StatefulSet derives its hostname from the name of the StatefulSet and the ordinal of the Pod. The pattern for the constructed hostname is `$(statefulset name)-$(ordinal)`. The example above will create three Pods named web-0,web-1,web-2. A StatefulSet can use a Headless Service to control the domain of its Pods.
+
+For each `VolumeClaimTemplate` entry defined in a StatefulSet, each Pod receives one `PersistentVolumeClaim`. If no StorageClass is specified, then the default StorageClass will be used. When a Pod is (re)scheduled onto a node, its volumeMounts mount the PersistentVolumes associated with its PersistentVolume Claims. Note that, the PersistentVolumes associated with the Pods' PersistentVolume Claims are not deleted when the Pods, or StatefulSet are deleted. This must be done manually.
+
+In summary, StatefulSets offer additional features and guarantees that are specifically tailored to the requirements of stateful applications like databases, particularly in terms of pod initialization, network identity, persistent storage, and service discovery.
+
+### Storage with PersistentVolumeClaim
+
+When using volumeClaimTemplates in a StatefulSet, you do not need to create Persistent Volumes (PVs) manually. Kubernetes will automatically create PVCs (Persistent Volume Claims) based on the templates defined in the StatefulSet, and the PVCs will dynamically bind to available PVs.
+
+Under the hood, Kubernetes uses dynamic provisioning to create PVs based on the storage class specified in the PVC template. The storage class determines how the underlying storage is provisioned (e.g., on-premises storage, cloud storage, etc.).
+
+---
+
+## ConfigMaps and Secrets
+
+Configurations and secrets are managed in a similar way to how Docker Swarm handles them. With Kubernetes you create resources of type `ConfigMap` and `Secret` for configurations and secrets, respectively. They contain a list of properties (that are encrypted on transmission in case of secrets) that can be referenced from other resources, for example for environment variables.
+
 ---
 
 ## Scenario Deployment
 
+To locally create a K8s cluster, install Minikube and follow the [Setup](#setup).
+
+Then push the webserver image to a public registry (or use the `maluz/webserver-cct-demo:1.0`) so that each node can easily pull the image.
+
+To deploy the bank scenario, run:
+
+```
+kubectl apply -f deploy
+```
+
+It will apply all the configuration files it finds in the current folder.
