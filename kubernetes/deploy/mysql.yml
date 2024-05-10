@@ -66,7 +66,10 @@ spec:
               command:
                 - "/bin/sh"
                 - "-c"
-                - "mysqladmin ping -h 127.0.0.1 -u $MYSQL_USER --password=$(cat /etc/secrets/mysql_password)"
+                - |
+                  mysqladmin ping -h 127.0.0.1 \
+                    -u $MYSQL_USER \
+                    --password=$(cat /etc/secrets/mysql_password)
             initialDelaySeconds: 10
             periodSeconds: 5
   volumeClaimTemplates:
@@ -79,3 +82,59 @@ spec:
         resources:
           requests:
             storage: 5Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mysql-seeding-job
+  labels:
+    app: mysql
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      volumes:
+        - name: mysql-config-volume
+          configMap:
+            name: mysql-config
+            items:
+              - key: seeding_script
+                path: ./seed.sql
+        - name: mysql-secret-volume
+          secret:
+            secretName: mysql-secret
+            items:
+              - key: MYSQL_PASSWORD
+                path: ./mysql_password
+      containers:
+        - name: mysql-seeder
+          image: mysql:8
+          volumeMounts:
+            - name: mysql-config-volume
+              readOnly: true
+              mountPath: "/etc/configs"
+            - name: mysql-secret-volume
+              readOnly: true
+              mountPath: "/etc/secrets"
+          envFrom:
+            - configMapRef:
+                name: mysql-public-env
+          env:
+            - name: MYSQL_PASSWORD_FILE
+              value: /etc/secrets/mysql_password
+            - name: MYSQL_HOST
+              value: mysql-service.default.svc.cluster.local
+          command:
+            - bash
+            - -c
+            - |
+              mysqladmin ping -h $MYSQL_HOST \
+                -u $MYSQL_USER \
+                --password=$(< /etc/secrets/mysql_password) && \
+              mysql --host=$MYSQL_HOST \
+                -u $MYSQL_USER \
+                --password=$(< /etc/secrets/mysql_password) \
+                -D $MYSQL_DATABASE \
+                -e 'source /etc/configs/seed.sql' || \
+              exit 1
+  backoffLimit: 6

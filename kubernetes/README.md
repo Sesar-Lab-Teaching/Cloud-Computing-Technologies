@@ -167,6 +167,16 @@ Configurations and secrets are managed in a similar way to how Docker Swarm hand
 
 ---
 
+# Jobs
+
+A Job creates one or more Pods and will continue to retry execution of the Pods until a specified number of them successfully terminate. As pods successfully complete, the Job tracks the successful completions. When a specified number of successful completions is reached, the task (ie, Job) is complete.
+
+A container in a Pod may fail for a number of reasons, such as because the process in it exited with a non-zero exit code, or the container was killed for exceeding a memory limit, etc. If this happens, and the `.spec.template.spec.restartPolicy = "OnFailure"`, then the Pod stays on the node, but the container is re-run. Therefore, your program needs to handle the case when it is restarted locally, or else specify `.spec.template.spec.restartPolicy = "Never"`.
+
+There are situations where you want to fail a Job after some amount of retries due to a logical error in configuration etc. To do so, set `.spec.backoffLimit` to specify the number of retries before considering a Job as failed. The back-off limit is set by default to 6. Failed Pods associated with the Job are recreated by the Job controller with an exponential back-off delay (10s, 20s, 40s ...) capped at six minutes.
+
+---
+
 ## Scenario Deployment
 
 To locally create a K8s cluster, install Minikube and follow the [Setup](#setup).
@@ -179,4 +189,70 @@ To deploy the bank scenario, run:
 kubectl apply -f deploy
 ```
 
-It will apply all the configuration files it finds in the current folder.
+It will apply all the configuration files it finds in the current folder. The resources controllers detect that the desired state is different from the current one and will start deploying the resources. To follow the resources creation sequence, you can run `kubectl events`, otherwise use `kubectl get` with the resource type you are interested in. For example, to retrieve the deployment info, run
+
+```
+kubectl get deployment
+```
+
+To get the events and the current statys of the deployment, run
+
+```
+kubectl describe deployment webserver-deployment
+```
+
+where `webserver-deployment` is the resource name for our deployment. Instead, to retrieve the node info and the pod that it hosts, then
+
+```
+kubectl describe node kube-demo
+```
+
+To list all the pods, run
+
+```
+kubectl get pods
+```
+
+Then, you can inspect the logs (and eventually troubleshoot):
+
+```
+kubectl logs webserver-deployment-<deployment_id>-<pod_id>
+```
+
+Finally, the last resource type we have to analyze is service:
+
+```
+kubectl get service
+```
+
+And the output will be similar to:
+
+```
+NAME                TYPE           CLUSTER-IP       EXTERNAL-IP      PORT(S)        AGE
+mysql-service       ClusterIP      None             <none>        3306/TCP       6m37s
+webserver-service   LoadBalancer   10.105.227.121   <pending>     80:30533/TCP   6m37s
+```
+
+While the `mysql-server` is a `ClusterIP` and its virtual IP addresses is exposed internally, the `webserver-service` is a `LoadBalancer` and needs an external IP from the pool of available IPs. If you are using Minikube, you will see the status `<pending>` because the host tunneling is not enabled yet. To reserve a host IP address for the Minikube cluster, run:
+
+```
+# to run in a new terminal
+minikube -p kube-demo tunnel
+```
+
+The `Status.route` field shows the mapped IP address. If you execute again `kubectl get service`, the External IP is now available. To test the webserver, use the mapped port 
+
+```
+webserver-service   LoadBalancer   10.104.20.24   10.104.20.24   80:31137/TCP
+                                                                    ^^^^^
+```
+
+Finally to delete all the created resource:
+
+```
+kubectl delete -f deploy
+```
+
+### Scaling the replicas
+
+To scale the number of replicas, you can use both the CLI (with `kubectl scale`) or update the YAML configurations for the deployment resource. Then, run again `kubectl apply -f deploy` and Kubernetes automatically detects that the desired state is different, i.e. a new replica is requested, and spawn a new pod.
