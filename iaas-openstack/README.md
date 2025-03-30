@@ -105,13 +105,16 @@ Each server needs an image, basically an OS that hosts the server. Glance is the
 openstack image list
 ```
 
-Since the only image available by default with devstack is cirrOS, devised for test purposes, we may need to import a new image (e.g. debian).
+Since the only image available by default with devstack is cirrOS, devised for test purposes, we need to import a new image (e.g. debian). There exists several versions of Debian images optimized for Cloud, the two we recommend are:
+- [debian 10 maintained by Openstack](https://cdimage.debian.org/images/cloud/OpenStack/current-10/debian-10-openstack-amd64.qcow2) (though Debian 10 is quite old...)
+- [Debian 12, generic for any cloud provider](https://cloud.debian.org/images/cloud/bookworm/20250316-2053/debian-12-genericcloud-amd64-20250316-2053.qcow2). For compatibility issues with webserver requirements, we will use this image.
 
 ```bash
 # from the home directory
 mkdir -p ~/custom/images
 cd ~/custom/images
 wget https://cdimage.debian.org/images/cloud/OpenStack/current-10/debian-10-openstack-amd64.qcow2
+wget https://cloud.debian.org/images/cloud/bookworm/20250316-2053/debian-12-genericcloud-amd64-20250316-2053.qcow2
 
 openstack image create \
     --container-format bare \
@@ -119,9 +122,16 @@ openstack image create \
     --disk-format qcow2 \
     --file debian-10-openstack-amd64.qcow2 \
     debian-10-openstack-amd64
+
+openstack image create \
+    --container-format bare \
+    --public \
+    --disk-format qcow2 \
+    --file debian-12-genericcloud-amd64-20250316-2053.qcow2 \
+    debian-12-genericcloud-amd64-20250316-2053
 ```
 
-The same can be done on the Horizon dashboard: *Compute* -> *Images* -> *Create Image*, or through HTTP APIs.s
+The same can be done on the Horizon dashboard: *Compute* -> *Images* -> *Create Image*, or through HTTP APIs.
 
 ---
 
@@ -152,6 +162,7 @@ openstack security group rule create --protocol icmp demo_secgroup
 And the security groups specific for the web server and db:
 
 ```bash
+# this sec group is not necessary because the default sec group already allows incoming connections which have a source inside the default sec group.
 openstack security group create demo_mysql_secgroup
 openstack security group rule create --dst-port 3306 --protocol tcp demo_mysql_secgroup
 openstack security group create demo_webserver_secgroup
@@ -209,7 +220,7 @@ openstack port create --network demo_private --fixed-ip subnet=demo_subnet,ip-ad
 
 ---
 
-# Cloud-init
+# Cloud-init & Metadata server
 
 Cloud-init is a widely adopted tool that automates the initial setup of cloud instances. On first boot, it processes user data, which is basically a declarative configuration file that initializes the instance by installing packages, setting up SSH keys, and applying any necessary customizations. This automation is especially useful with OpenStack, as it simplifies and accelerates instance provisioning while ensuring consistent configurations across deployments.
 
@@ -219,48 +230,65 @@ We have to specify 2 different cloud-init scripts, one for the web server and th
 mkdir -p ~/custom/cloud-init
 ```
 
-Now copy the `sqldb/provision-db.yaml` in `~/custom/cloud-init/db.yaml`.
+Now copy the `sqldb/provision-db.yaml` in `~/custom/cloud-init/db.yaml`, and `webserver/provision-webserver.yaml` in `~/custom/cloud-init/webserver.yaml`. These files contain the additional packages to install and the one-time commands to run (see `runcmd` property). They are specified using the `--user-data` option during instance creation.
+
+Another interesting feature typically offered by cloud platforms is the metadata server, a special web service that supplies instance-specific information to virtual machines at runtime. It is usually accessible via a link-local address (e.g. `169.254.169.254`) and it delivers data such as instance identity, network configuration, and user data. User data includes the possibility of writing/reading custom properties. While building the webserver instance, we will specify the database ip as custom property (`--property`) so that it does not have to be hard-coded inside the cloud-init file. This is especially useful to parameterize the creation of a new instance with any number of properties, like db name, user and password for a db creation. 
+
+The cloud-init package can query the metadata APIs or be configured with a config drive with the option `--config-drive=true` in the server creation.
 
 ---
 
 # Computing with Nova
 
-Now that we have the Debian image, we can create a new instance starting from it. We also need to configure the flavor, which determines the resources used by openstack, and the network the instance should be attached to.
-
-To run a debian server, connected to the private network:
+Now the setup is ready to launch the actual instances. To establish the amount of resources an instance has (Storage size, Ram, CPUs), we can set the **flavor**. First create the **db** instance:
 
 ```bash
 openstack server create \
-    --image debian-10-openstack-amd64 \
+    --image debian-12-genericcloud-amd64-20250316-2053 \
     --flavor d3 \
-    --port port_webserver \
-    --security-group default \
+    --port port_mysql \
     --security-group demo_secgroup \
     --key-name demo_key \
     --user-data ~/custom/cloud-init/db.yaml \
-    testinstance1
+    demo_db_instance
 ```
 
-To verify whether the instance is active, run `openstack server show testinstance1 -c status`. Other fields to check are `addresses`.
+When the db instance is ready, we can launch the **webserver**, which will connect to the db to show the results:
+
+```bash
+DB_IP_ADDRESS="$(openstack port show port_mysql -f json | jq -r '.fixed_ips[0].ip_address')"
+openstack server create \
+    --image debian-12-genericcloud-amd64-20250316-2053 \
+    --flavor d3 \
+    --port port_webserver \
+    --security-group demo_secgroup \
+    --security-group demo_webserver_secgroup \
+    --property db_ip=$DB_IP_ADDRESS \
+    --key-name demo_key \
+    --user-data ~/custom/cloud-init/webserver.yaml \
+    demo_webserver_instance
+```
+
+To verify whether the instance is active, run `openstack server show testinstance1 -c status`.
 
 We can also see logs from the server using
 
-```
-openstack console log show testinstance1
+```bash
+openstack console log show demo_webserver_instance
 ```
 
-but we can also open a VNC connection with:
+To open a VNC connection, run:
 
-```
-openstack console url show testinstance1
+```bash
+openstack console url show demo_webserver_instance
 ```
 
 All these operations are available from the Horizon dashboard, in the *Compute* -> *Instances* section.
 
 To stop the instance:
 
-```
-openstack server stop testinstance1
+```bash
+openstack server stop demo_webserver_instance
 ```
 
 ---
@@ -275,7 +303,7 @@ From the console, you should first check whether there is any available Floating
 openstack floating ip list
 ```
 
-Then, you can create a floating IP with:
+Then, you can create a floating IP and associate it with an existing port by running:
 
 ```bash
 FLOATING_IP=172.24.4.198
@@ -285,7 +313,7 @@ openstack floating ip create \
     public
 ```
 
-Finally, you can associate it with the server instance with:
+Instead, if you do not want to associate it to a specific port, you can omit the `--port` parameter and associate it with a server instance by running:
 
 ```bash
 openstack server add floating ip testinstance1 {floating_ip}
@@ -294,97 +322,8 @@ openstack server add floating ip testinstance1 {floating_ip}
 Now your instance is available from the outside with SSH:
 
 ```bash
-ssh -i ~/custom/ssh-keys/demo-key.pem debian@{floating_ip}
+ssh -i ~/custom/ssh-keys/demo-key.pem debian@$FLOATING_IP
 ```
-
----
-
-### Floating IP
-
-The server can access the outside world thanks to SNAT, that allows packets to flow from the internal network to the external network. We can do the opposite by creating a Floating IP, which belongs to the address range of the external network. Any packet sent to this IP address is redirected to the router connecting the internal and external networks, which is configured to perform DNAT: the Floating IP of the external network is converted to the Fixed IP of the internal network.
-
-From the console, you should first check whether there is any available Floating IP that is not associated yet:
-
-```
-openstack floating ip list
-```
-
-Then, you can create a floating IP with:
-
-```
-openstack floating ip create public
-```
-
-Where `public` is the external network Id. Finally, you can associate it with the server instance with:
-
-```
-openstack server add floating ip testinstance1 {floating_ip}
-```
-
----
-
-After configuring the security group and the floating IP, we can connect to the server using the floating IP. With the cirrOS image, if we have enabled the 22/tcp port, then SSH is the only available connection type:
-
-```
-ssh cirros@{floating_IP}
-```
-
-And use the default password (`gocubsgo`) to access it. Instead of using the password authentication method, we can configure the  public key method using a keypair.
-
----
-
-## SSH Access
-
-Now that a server can accept SSH connections, the recommended way to access it includes the usage of SSH keys. The following command creates a new key pair: Nova stores the public key and injects it into the instance through `cloud-init`, while we keep the private part:
-
-```
-openstack keypair create demokey > my_data/keys/demokey.pem
-chmod 600 my_data/keys/demokey.pem
-```
-
-Next, the server creation (here we are using Fedora because Ubuntu needs additional configuration, i.e. DNS resolution):
-
-```
-openstack server create --image Fedora-39-1.5 --flavor 2 --network private --key-name demokey testinstance2
-```
-
-To access the instance with SSH, we have to specify the private key location and assign a floating IP to the host:
-
-```
-ssh -i path_to_pem.pem fedora@{floating_ip}
-```
-
----
-
-## Provisioning the servers
-
-A first type of configuration is the keypair attachment when the server is created. We can do much more by leveraging the metadata service provided by Nova. This service is available within any instance at `http://169.254.169.254` and is used to personalize the instance creation in many ways:
-
-```
-openstack server create --property db_ip=10.10.10.3 # ...
-```
-
-is a first example that shows how to pass information at startup. Another scenario consists of provisioning the instance with a startup script:
-
-```
-openstack server create --user-data SCRIPT
-```
-
-An alternative to the startup script is the cloud-config file that describes the expected outcome of the instance initialization.
-
-The install script can also read the properties passed using the metadata APIs:
-
-```
-#!/bin/bash
-curl -O 169.254.169.254/openstack/latest/meta_data.json
-db_ip=$(jq -r .meta.db_ip meta_data.json)
-
-# ... remaining of install script 
-```
-
-This is especially useful to parameterize the creation of a new server. Any number of properties can be specified, like db name, user and password for a db creation. The web server needs the db IP address, which can be passed with the key-value metadata.
-
-The cloud-init package can query the metadata APIs or be configured with a config drive with the option `--config-drive=true` in the server creation.
 
 ---
 

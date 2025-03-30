@@ -1,0 +1,50 @@
+#cloud-config
+#
+# provisioning script of webserver for debian-based distro
+package_reboot_if_required: true
+package_update: true
+package_upgrade: true
+packages:
+  - python3.11-venv
+  - default-libmysqlclient-dev
+  - python3.11-dev
+  - build-essential
+  - pkg-config
+  - jq
+
+write_files:
+- content: |
+    #!/bin/bash
+    mkdir -p webserver
+    cd webserver
+    python3.11 -m venv venv
+    source venv/bin/activate
+
+    wget "https://bootstrap.pypa.io/get-pip.py"
+    python3.11 get-pip.py
+    rm get-pip.py
+
+    wget https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/refs/heads/main/webserver/requirements.txt
+    pip install -r requirements.txt
+
+    wget https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/refs/heads/main/webserver/main.py
+
+    wget http://169.254.169.254/openstack/latest/meta_data.json
+    DB_IP_ADDRESS=$(jq -r .meta.db_ip meta_data.json)
+    rm meta_data.json
+
+    cat <<EOF > .env
+    MYSQL_HOST=$DB_IP_ADDRESS
+    MYSQL_ROOT_PASSWORD=root
+    MYSQL_USER=cct
+    MYSQL_PASSWORD=cct-secret
+    MYSQL_DATABASE=cct
+    MYSQL_PORT=3306
+    EOF
+
+    flask --app main.py run --host=0.0.0.0 &
+  path: /init.sh
+
+runcmd:
+  - chmod +x /init.sh
+  - /init.sh
