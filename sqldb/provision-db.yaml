@@ -1,0 +1,38 @@
+#cloud-config
+#
+package_reboot_if_required: true
+package_update: true
+package_upgrade: true
+packages:
+  - gnupg
+
+#!/bin/bash
+
+# provisioning script of mysql db for debian-based distro
+
+# apt update
+# apt -y install gnupg
+# wget https://dev.mysql.com/get/mysql-apt-config_0.8.22-1_all.deb
+# export DEBIAN_FRONTEND=noninteractive
+# dpkg -i mysql-apt-config_0.8.22-1_all.deb
+# rm mysql-apt-config_0.8.22-1_all.deb
+# # Fix missing public key for apt repository of mysql
+# apt-key adv --keyserver keyserver.ubuntu.com --recv-keys B7B3B788A8D3785C
+# apt update
+# apt -y install mysql-server
+
+# mysql -u root <<- EOF
+#     CREATE DATABASE cct;
+#     CREATE USER 'cct'@'%' IDENTIFIED BY 'cct-secret';
+#     GRANT ALL PRIVILEGES ON cct.* TO 'cct'@'%';
+#     FLUSH PRIVILEGES;
+# EOF
+
+# curl -O https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/511f3e72eb419d21cc28a09ef7896d54f5526eba/ovirt-demo-single-vm/seed.sql
+
+# mysql -u cct --password=cct-secret cct < seed.sql
+
+# sed -i 's/bind-address		= 127.0.0.1/bind-address		= 0.0.0.0/g' /etc/mysql/mysql.conf.d/mysqld.cnf
+# ufw allow 3306
+
+# systemctl restart mysql
