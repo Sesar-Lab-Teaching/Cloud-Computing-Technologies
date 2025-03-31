@@ -247,10 +247,10 @@ openstack server create \
     --image debian-12-genericcloud-amd64-20250316-2053 \
     --flavor d3 \
     --port port_mysql \
-    --security-group demo_secgroup \
     --key-name demo_key \
     --user-data ~/custom/cloud-init/db.yaml \
     demo_db_instance
+openstack server add security group demo_db_instance demo_secgroup
 ```
 
 When the db instance is ready, we can launch the **webserver**, which will connect to the db to show the results:
@@ -261,12 +261,12 @@ openstack server create \
     --image debian-12-genericcloud-amd64-20250316-2053 \
     --flavor d3 \
     --port port_webserver \
-    --security-group demo_secgroup \
-    --security-group demo_webserver_secgroup \
     --property db_ip=$DB_IP_ADDRESS \
     --key-name demo_key \
     --user-data ~/custom/cloud-init/webserver.yaml \
     demo_webserver_instance
+openstack server add security group demo_db_instance demo_secgroup
+openstack server add security group demo_db_instance demo_webserver_secgroup
 ```
 
 To verify whether the instance is active, run `openstack server show testinstance1 -c status`.
@@ -308,7 +308,7 @@ Then, you can create a floating IP and associate it with an existing port by run
 ```bash
 FLOATING_IP=172.24.4.198
 openstack floating ip create \
-    --floating-ip-address $FLOATING_IP \
+    --floating-ip-address 172.24.4.198 \
     --port port_webserver \
     public
 ```
@@ -316,13 +316,29 @@ openstack floating ip create \
 Instead, if you do not want to associate it to a specific port, you can omit the `--port` parameter and associate it with a server instance by running:
 
 ```bash
-openstack server add floating ip testinstance1 {floating_ip}
+openstack server add floating ip testinstance1 172.24.4.198
 ```
 
 Now your instance is available from the outside with SSH:
 
 ```bash
-ssh -i ~/custom/ssh-keys/demo-key.pem debian@$FLOATING_IP
+ssh -i ~/custom/ssh-keys/demo-key.pem debian@172.24.4.198
+```
+
+The index page of the webserver can be retrieved by issuing an HTTP request to `172.24.4.198` from the host:
+
+```
+curl http://172.24.4.198:5000
+```
+
+We should see the user accounts, which serves as a proof that the webserver correctly queried the mysql instance. 
+
+### (Devstack only)
+To expose the 5000 port on the host and see the web page, create an iptable rule:
+
+```bash
+sudo iptables -t nat -A PREROUTING -p tcp -d ${HOST_IP} --dport 5000 -j DNAT --to-destination 172.24.4.198:5000
+sudo iptables -t nat -A POSTROUTING -p tcp -d 172.24.4.198 --dport 5000 -j MASQUERADE
 ```
 
 ---
@@ -336,72 +352,6 @@ openstack server image create server_name --name new_image_name
 ```
 
 With `openstack image list` you will see a new image with status `saving`. Once it transitions to `active` the image is ready to be used for a new server.
-
----
-
-# Networking with Neutron
-
-The core concept of Neutron are ports and subnets, anything else is considered extensions (routers, firewall, VPN). For instance, a router is connected to a network (subnet) via a port, which has a `port_id`.
-
-Now we want to create a frontend network connected to the public network and a backend network exclusively connected to the front end. This configuration offers a better protection of the backend components (database), keeping only the frontend components (web server) accessible to the internet.
-
-To create a new network with a subnet:
-
-```
-openstack network create frontend
-openstack subnet create frontend-subnet --network frontend --subnet-range 10.1.1.0/24
-openstack network create backend
-openstack subnet create backend-subnet --network backend --subnet-range 10.2.2.0/24
-```
-
-Then we have to attach a router to the frontend subnet and to the public network (as external gateway, where SNAT is configured):
-
-```
-openstack router create front-pub-router
-openstack router add subnet front-pub-router frontend-subnet
-openstack router set --external-gateway public front-pub-router
-```
-
-For the backend network, the procedure is similar, except for the external gateway, which must not be configured.
-
-```
-openstack router create back-front-router
-openstack router add subnet back-front-router backend-subnet
-```
-
-To connect the router to the second subnet we cannot do the same because the router would try to take over the same IP address already allocated by the `front-pub-router`. The solution is to create another port and attach the router to that port rather than the subnet
-
-```
-openstack port create frontend-port --network frontend
-openstack router add port back-front-router frontend-port
-```
-
----
-
-## DHCP configurations
-
-servers need internet access, provided by the front-pub-router through SNAT, and domain resolution. The web server also needs to know how to reach the backend network. There are 2 solutions:
-
-### DNS configurations on servers
-
-Both servers needs initialization of the `/etc/resolv.conf` file.
-For the web server, the content of that file is:
-
-```
-10.2.2.0/24 via 10.1.1.110
-```
-
-Where `10.1.1.110` is the port IP connecting the frontend router to the backend router.
-
-### DNS configurations on the subnet
-
-The other possible solution is to attach a dns directly to the subnet (`1.1.1.1` is a public dns resolver):
-
-```
-openstack subnet set frontend-subnet --dns-nameserver 1.1.1.1 --host-route destination=10.2.2.0/24,gateway=10.1.1.110
-```
-
-After a `openstack subnet show frontend-subnet`, the fields `dns_nameservers` and `host_routes` are filled with this information, which is passed on to the server instances via DHCP each time it boots up. On server creation, cloud-init takes care of modifying the `/etc/resolv.conf` based on the DHCP configuration.
 
 ---
 
@@ -502,84 +452,3 @@ To monitor the state of the stack deployment, we can read the events:
 ```
 openstack stack event list stack_name
 ```
-
-# Deployment of the scenario
-
-Before deploying the scenario, we need:
-
-- An SSH Keypair, as described [here](#ssh-access):
-- two security groups to allow port 3306 for the mysql server and port 5000 for the web server:
-
-```
-openstack security group create mysql_sec_group
-openstack security group rule create --dst-port 3306 --protocol tcp mysql_sec_group
-openstack security group create webserver_sec_group
-openstack security group rule create --dst-port 5000 --protocol tcp webserver_sec_group
-openstack security group rule create --dst-port 22 --protocol tcp default
-openstack security group rule create --protocol icmp default
-```
-
-- The Ubuntu cloud image for the web servers:
-
-```
-glance image-create --name Ubuntu22.04LTS --architecture amd64 --protected False --min-disk 10 --visibility public --disk-format qcow2 --min-ram 1024 --container-format bare --file my_images/jammy-server-cloudimg-amd64-disk-kvm.img
-```
-
-Now we can configure the networking:
-
-```
-WEBSERVER_IP=192.168.1.3
-MYSQL_IP=192.168.1.4
-openstack network create demo_network
-openstack subnet create demo_subnet --network demo_network --dns-nameserver 8.8.8.8 --subnet-range 192.168.1.0/24
-openstack router create demo_router
-openstack router set demo_router --external-gateway public
-openstack router add subnet demo_router demo_subnet
-# Create a port for web server with a fixed IP
-openstack port create --network demo_network --fixed-ip subnet=demo_subnet,ip-address=$WEBSERVER_IP port_webserver
-# Create a port for mysql with a fixed IP
-openstack port create --network demo_network --fixed-ip subnet=demo_subnet,ip-address=$MYSQL_IP port_mysql
-```
-
-We can provision the servers using the `provision-db.sh` and `provision-webserver.sh` with the `--user-data` option.
-In the previously configured network, we deploy the db and web server:
-
-```
-# mysql
-openstack server create --image Ubuntu22.04LTS --flavor d2 --port port_mysql --key-name demokey --user-data my_provisioning/provision-db.sh mysql_instance
-openstack floating ip create public --tag mysql_floating_ip
-MYSQL_FLOATING_IP_INFO=$(openstack floating ip list --long -c ID -c "Floating IP Address" -c IpAddress -c Tags -f value | grep "mysql_floating_ip")
-MYSQL_FLOATING_IP_ID=$(echo "$MYSQL_FLOATING_IP_INFO" | awk '{print $1}')
-MYSQL_FLOATING_IP_ADDRESS=$(echo "$MYSQL_FLOATING_IP_INFO" | awk '{print $2}')
-openstack server add floating ip mysql_instance $MYSQL_FLOATING_IP_ID
-openstack server add security group mysql_instance mysql_sec_group
-
-# webserver
-openstack server create --image Ubuntu22.04LTS --flavor d2 --port port_webserver --key-name demokey --user-data my_provisioning/provision-webserver.sh --property db_ip=$MYSQL_IP webserver_instance
-openstack floating ip create public --tag webserver_floating_ip
-WEBSERVER_FLOATING_IP_INFO=$(openstack floating ip list --long -c ID -c "Floating IP Address" -c IpAddress -c Tags -f value | grep "webserver_floating_ip")
-WEBSERVER_FLOATING_IP_ID=$(echo "$WEBSERVER_FLOATING_IP_INFO" | awk '{print $1}')
-WEBSERVER_FLOATING_IP_ADDRESS=$(echo "$WEBSERVER_FLOATING_IP_INFO" | awk '{print $2}')
-openstack server add floating ip webserver_instance $WEBSERVER_FLOATING_IP_ID
-openstack server add security group webserver_instance webserver_sec_group
-```
-
-and access them with:
-
-```
-ssh -i my_data/keys/demokey.pem ubuntu@$MYSQL_FLOATING_IP_ADDRESS
-ssh -i my_data/keys/demokey.pem ubuntu@$WEBSERVER_FLOATING_IP_ADDRESS
-```
-
-The index page of the webserver can be retrieved by issuing an HTTP request to `$WEBSERVER_FLOATING_IP_ADDRESS`:
-
-```
-curl http://$WEBSERVER_FLOATING_IP_ADDRESS:5000
-```
-
-We should see the user accounts, which serves as a proof that the webserver correctly queried the mysql instance.
-
-
-
-
-
