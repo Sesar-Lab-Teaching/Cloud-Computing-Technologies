@@ -1,0 +1,66 @@
+Description: >
+  CloudFormation template for deploying the network for the cct demo on iaas
+
+Outputs:
+  VpcId:
+    Description: "The ID of the VPC"
+    Value: !Ref DemoCCTVPC
+
+  SubnetId:
+    Description: "The ID of the Subnet within the DemoCCTVPC"
+    Value: !Ref DemoCCTSubnet
+
+  SecurityGroupId:
+    Description: "The ID of the Security Group within the DemoCCTVPC"
+    Value: !Ref DemoCCTSecGroup
+
+Resources:
+  DemoCCTVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/28
+      Tags:
+       - Key: Environment
+         Value: demo-cct
+  DemoCCTSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref DemoCCTVPC
+      CidrBlock: 10.0.0.0/28
+  DemoCCTInternetGateway:
+    Type: AWS::EC2::InternetGateway
+  DemoCCTInternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref DemoCCTInternetGateway
+      VpcId: !Ref DemoCCTVPC
+  DemoCCTRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref DemoCCTVPC
+  DemoCCTPublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref DemoCCTInternetGateway
+      RouteTableId: !Ref DemoCCTRouteTable
+  DemoCCTSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref DemoCCTRouteTable
+      SubnetId: !Ref DemoCCTSubnet
+  DemoCCTSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: DemoCCTSecGroup
+      GroupDescription: Allow ping and SSH connections
+      VpcId: !Ref DemoCCTVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: icmp
+          FromPort: 8
+          ToPort: -1
+          CidrIp: 0.0.0.0/0

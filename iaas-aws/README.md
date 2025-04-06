@@ -88,7 +88,7 @@ aws ec2 create-tags --resources "$SG_ID" \
     --tags 'Key=Environment,Value=demo-cct'
 # create rule for SSH connections
 aws ec2 authorize-security-group-ingress \
-    --group-id "$SG_ID" \/home/maluz/Desktop/lavoro/cct-repo/paas-aws-lambda/temp.sh
+    --group-id "$SG_ID" \
     --protocol tcp \
     --port 22 \
     --cidr 0.0.0.0/0 \

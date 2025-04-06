@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  DemoCCTNetworkingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/iaas/cfn-templates/networking.yaml'
+      Tags:
+        - Key: Environment
+          Value: demo-cct
+      # Parameters:
+      #   # Pass parameters to the nested stack if needed
+      #   InstanceType: 't3.micro'
+
+  # MySecondNestedStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: 'https://s3.amazonaws.com/amzn-s3-demo-bucket/second-nested-stack.yaml'
+  #     Parameters:
+  #       # Pass parameters to the nested stack if needed
+  #       Environment: 'Testing'
+  #   DependsOn: MyFirstNestedStack
