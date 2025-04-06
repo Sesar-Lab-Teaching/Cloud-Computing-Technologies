@@ -1,0 +1,118 @@
+Description: >
+  CloudFormation template for deploying the Webserver instance within the cct demo on iaas
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC Id
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Key pair used to SSH into the instance
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet where the instance will be launched
+  SecGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security Group for the instance
+  SqlDbIPAddress:
+    Type: String
+    Description: IP address of the DB instance
+
+Outputs:
+  WebserverIpAddress:
+    Description: EIP address of the webserver instance created
+    Value: !GetAtt WebserverEIP.PublicIp
+
+Resources:
+  AllowHTTPPortSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: DemoCCTWebserverSecGroup
+      GroupDescription: Allow http connections to port 5000
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+  WebserverLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        # Debian 12
+        ImageId: ami-0ef32de3e8ab0640e
+        InstanceType: t2.medium
+        KeyName: !Ref KeyPairName
+        Monitoring:
+          Enabled: true
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: false
+            DeviceIndex: 0
+            SubnetId: !Ref SubnetId
+            Groups:
+              - !Ref SecGroupId
+              - !Ref AllowHTTPPortSecGroup
+        UserData: 
+          Fn::Base64: !Sub |
+            #cloud-config
+            #
+            # provisioning script of webserver for debian-based distro
+            package_reboot_if_required: true
+            package_update: true
+            package_upgrade: true
+            packages:
+              - python3.11-venv
+              - default-libmysqlclient-dev
+              - python3.11-dev
+              - build-essential
+              - pkg-config
+              - jq
+
+            write_files:
+            - content: |
+                #!/bin/bash
+                mkdir -p webserver
+                cd webserver
+                python3.11 -m venv venv
+                source venv/bin/activate
+
+                wget "https://bootstrap.pypa.io/get-pip.py"
+                python3.11 get-pip.py
+                rm get-pip.py
+
+                wget https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/refs/heads/main/webserver/requirements.txt
+                pip install -r requirements.txt
+
+                wget https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/refs/heads/main/webserver/main.py
+
+                cat <<EOF > .env
+                MYSQL_HOST=${SqlDbIPAddress}
+                MYSQL_ROOT_PASSWORD=root
+                MYSQL_USER=cct
+                MYSQL_PASSWORD=cct-secret
+                MYSQL_DATABASE=cct
+                MYSQL_PORT=3306
+                EOF
+
+                flask --app main.py run --host=0.0.0.0 &
+              path: /init.sh
+
+            runcmd:
+              - chmod +x /init.sh
+              - /init.sh
+
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: demo-cct-webserver-instance
+  WebserverInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref WebserverLaunchTemplate
+        Version: !GetAtt WebserverLaunchTemplate.DefaultVersionNumber
+  WebserverEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref WebserverInstance

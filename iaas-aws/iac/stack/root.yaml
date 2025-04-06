@@ -7,15 +7,30 @@ Resources:
       Tags:
         - Key: Environment
           Value: demo-cct
-      # Parameters:
-      #   # Pass parameters to the nested stack if needed
-      #   InstanceType: 't3.micro'
 
-  # MySecondNestedStack:
-  #   Type: AWS::CloudFormation::Stack
-  #   Properties:
-  #     TemplateURL: 'https://s3.amazonaws.com/amzn-s3-demo-bucket/second-nested-stack.yaml'
-  #     Parameters:
-  #       # Pass parameters to the nested stack if needed
-  #       Environment: 'Testing'
-  #   DependsOn: MyFirstNestedStack
+  DemoCCTSqlDbStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/iaas/cfn-templates/sqldb.yaml'
+      Tags:
+        - Key: Environment
+          Value: demo-cct
+      Parameters:
+        KeyPairName: !GetAtt DemoCCTNetworkingStack.Outputs.KeyPair
+        SubnetId: !GetAtt DemoCCTNetworkingStack.Outputs.SubnetId
+        SecGroupId: !GetAtt DemoCCTNetworkingStack.Outputs.SecGroupId
+        PrivateIpAddress: '10.0.0.7' 
+
+  DemoCCTWebserverStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/iaas/cfn-templates/webserver.yaml'
+      Tags:
+        - Key: Environment
+          Value: demo-cct
+      Parameters:
+        VpcId: !GetAtt DemoCCTNetworkingStack.Outputs.VpcId
+        KeyPairName: !GetAtt DemoCCTNetworkingStack.Outputs.KeyPair
+        SubnetId: !GetAtt DemoCCTNetworkingStack.Outputs.SubnetId
+        SecGroupId: !GetAtt DemoCCTNetworkingStack.Outputs.SecGroupId
+        SqlDbIPAddress: !GetAtt DemoCCTSqlDbStack.Outputs.SqlInstanceIpAddress

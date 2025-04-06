@@ -5,14 +5,15 @@ Outputs:
   VpcId:
     Description: "The ID of the VPC"
     Value: !Ref DemoCCTVPC
-
   SubnetId:
     Description: "The ID of the Subnet within the DemoCCTVPC"
     Value: !Ref DemoCCTSubnet
-
-  SecurityGroupId:
+  SecGroupId:
     Description: "The ID of the Security Group within the DemoCCTVPC"
     Value: !Ref DemoCCTSecGroup
+  KeyPair:
+    Description: "The Name of the Key Pair used to access instances"
+    Value: !Ref DemoCCTKeyPair
 
 Resources:
   DemoCCTVPC:
@@ -57,6 +58,10 @@ Resources:
       VpcId: !Ref DemoCCTVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          SourceSecurityGroupId: !Ref DemoCCTSecGroup
+        - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
           CidrIp: 0.0.0.0/0
@@ -64,3 +69,7 @@ Resources:
           FromPort: 8
           ToPort: -1
           CidrIp: 0.0.0.0/0
+  DemoCCTKeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties: 
+      KeyName: demo-cct-key-pair
