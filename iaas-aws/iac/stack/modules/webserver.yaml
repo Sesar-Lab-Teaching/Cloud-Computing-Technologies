@@ -22,7 +22,7 @@ Parameters:
 #     Value: !GetAtt WebserverEIP.PublicIp
 
 Resources:
-  AllowHTTPPortSecGroup:
+  AllowTCP5000PortSecGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: DemoCCTWebserverSecGroup
@@ -44,12 +44,12 @@ Resources:
         Monitoring:
           Enabled: true
         NetworkInterfaces:
-          - AssociatePublicIpAddress: false
+          - AssociatePublicIpAddress: true
             DeviceIndex: 0
             SubnetId: !Ref SubnetId
             Groups:
               - !Ref SecGroupId
-              - !Ref AllowHTTPPortSecGroup
+              - !Ref AllowTCP5000PortSecGroup
         UserData: 
           Fn::Base64: !Sub |
             #cloud-config
@@ -127,20 +127,34 @@ Resources:
         Fn::Select: 
           - 1
           - Fn::GetAZs: ""
+  AllowHTTPPortSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: DemoCCTLoadBalancerSecGroup
+      GroupDescription: Allow http connections to port 80
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
   WebserverLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Subnets: 
         - !Ref SubnetId
         - !Ref ALBDumbSubnet
+      SecurityGroups:
+        - !Ref SecGroupId
+        - !Ref AllowHTTPPortSecGroup
   ALBWebserverTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      HealthCheckIntervalSeconds: 60
+      HealthCheckIntervalSeconds: 120
       HealthCheckPath: /health
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 5
+      UnhealthyThresholdCount: 10
       Port: 5000
       Protocol: HTTP
       VpcId: !Ref VpcId
@@ -168,3 +182,17 @@ Resources:
         - !Ref SubnetId
       TargetGroupARNs:
         - !Ref ALBWebserverTargetGroup
+  ALBRequestCountScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    DependsOn: ALBWebserverListener
+    Properties:
+      AutoScalingGroupName: !Ref ASGWebserver
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ALBRequestCountPerTarget
+          ResourceLabel: !Join 
+            - '/' 
+            - - !GetAtt WebserverLoadBalancer.LoadBalancerFullName
+              - !GetAtt ALBWebserverTargetGroup.TargetGroupFullName
+        TargetValue: 10

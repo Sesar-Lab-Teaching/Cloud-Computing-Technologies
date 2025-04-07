@@ -32,7 +32,7 @@ Resources:
         Monitoring:
           Enabled: true
         NetworkInterfaces:
-          - AssociatePublicIpAddress: false
+          - AssociatePublicIpAddress: true
             DeviceIndex: 0
             SubnetId: !Ref SubnetId
             Groups:
