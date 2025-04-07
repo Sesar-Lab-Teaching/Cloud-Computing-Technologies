@@ -2,7 +2,8 @@
 import os
 from dotenv import load_dotenv
 
-from flask import Flask, jsonify
+import socket
+from flask import Flask
 from flask_mysqldb import MySQL
 
 load_dotenv()
@@ -16,6 +17,8 @@ app.config['MYSQL_DB'] = os.getenv('MYSQL_DATABASE')
 app.config['MYSQL_PORT'] = int(os.getenv('MYSQL_PORT'))
 
 mysql = MySQL(app)
+
+local_hostname = socket.gethostname()
 
 @app.route('/')
 def get_data():
@@ -35,21 +38,26 @@ def get_data():
             </style>
         </head>
         <body>
-        <table>
-            <tr>
-                <th>Id</th>
-                <th>Name</th>
-                <th>Balance</th>
-            </tr>
+            <table>
+                <tr>
+                    <th>Id</th>
+                    <th>Name</th>
+                    <th>Balance</th>
+                </tr>
     '''
     
     for d in data:
        html += f'''
-    <tr>
-        <td>{d[0]}</td>
-        <td>{d[1]}</td>
-        <td>{d[2]}</td>
-    </tr>
+                <tr>
+                    <td>{d[0]}</td>
+                    <td>{d[1]}</td>
+                    <td>{d[2]}</td>
+                </tr>
     '''
-    html += '</table></body></html>'
+    html += f'''
+            </table>
+            <hr />
+            <p>Hostname: {local_hostname}</p>
+        </body>
+    </html>'''
     return html
