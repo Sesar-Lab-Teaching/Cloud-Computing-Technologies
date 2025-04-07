@@ -1,6 +1,4 @@
-Description: >
-  CloudFormation template for deploying the Webserver instance within the cct demo on iaas
-
+Description: CloudFormation template for deploying the Webserver instance within the cct demo on iaas
 Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -18,10 +16,10 @@ Parameters:
     Type: String
     Description: IP address of the DB instance
 
-Outputs:
-  WebserverIpAddress:
-    Description: EIP address of the webserver instance created
-    Value: !GetAtt WebserverEIP.PublicIp
+# Outputs:
+#   WebserverIpAddress:
+#     Description: EIP address of the webserver instance created
+#     Value: !GetAtt WebserverEIP.PublicIp
 
 Resources:
   AllowHTTPPortSecGroup:
@@ -57,20 +55,24 @@ Resources:
             #cloud-config
             #
             # provisioning script of webserver for debian-based distro
-            package_reboot_if_required: true
-            package_update: true
-            package_upgrade: true
-            packages:
-              - python3.11-venv
-              - default-libmysqlclient-dev
-              - python3.11-dev
-              - build-essential
-              - pkg-config
-              - jq
-
             write_files:
             - content: |
                 #!/bin/bash
+                while true
+                do
+                  if ping -c 1 -W 2 "8.8.8.8" &>/dev/null; then
+                    echo "$(date) - Internet is reachable."
+                    break
+                  else
+                    echo "$(date) - Internet is unreachable."
+                    sleep 3
+                  fi
+                done
+                apt -y update
+                apt -y upgrade
+                apt -y install python3.11-venv default-libmysqlclient-dev \
+                  python3.11-dev build-essential pkg-config
+
                 mkdir -p webserver
                 cd webserver
                 python3.11 -m venv venv
@@ -106,13 +108,63 @@ Resources:
             Tags:
               - Key: Name
                 Value: demo-cct-webserver-instance
-  WebserverInstance:
-    Type: AWS::EC2::Instance
+  # WebserverInstance:
+  #   Type: AWS::EC2::Instance
+  #   Properties:
+  #     LaunchTemplate:
+  #       LaunchTemplateId: !Ref WebserverLaunchTemplate
+  #       Version: !GetAtt WebserverLaunchTemplate.LatestVersionNumber
+  # WebserverEIP:
+  #   Type: AWS::EC2::EIP
+  #   Properties:
+  #     InstanceId: !Ref WebserverInstance
+  ALBDumbSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcId
+      CidrBlock: 10.0.0.16/28
+      AvailabilityZone: 
+        Fn::Select: 
+          - 1
+          - Fn::GetAZs: ""
+  WebserverLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets: 
+        - !Ref SubnetId
+        - !Ref ALBDumbSubnet
+  ALBWebserverTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: /health
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 5
+      Port: 5000
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+  ALBWebserverListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref ALBWebserverTargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref WebserverLoadBalancer
+      Port: 80
+      Protocol: HTTP
+  ASGWebserver:
+    Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       LaunchTemplate:
         LaunchTemplateId: !Ref WebserverLaunchTemplate
-        Version: !GetAtt WebserverLaunchTemplate.DefaultVersionNumber
-  WebserverEIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      InstanceId: !Ref WebserverInstance
+        Version: !GetAtt WebserverLaunchTemplate.LatestVersionNumber
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300
+      MaxSize: '3'
+      DesiredCapacity: '2'
+      MinSize: '1'
+      VPCZoneIdentifier: 
+        - !Ref SubnetId
+      TargetGroupARNs:
+        - !Ref ALBWebserverTargetGroup

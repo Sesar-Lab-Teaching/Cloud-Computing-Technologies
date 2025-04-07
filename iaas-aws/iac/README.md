@@ -76,5 +76,5 @@ ELASTIC_IP="$(aws ec2 describe-addresses \
     --filters "Name=tag:Environment,Values=demo-cct" \
     --query "Addresses[0].PublicIp" \
     --output text)"
-ssh -i "demo-key-pair.pem" admin@${ELASTIC_IP}
+ssh -i "demo-key-pair.pem" -o IdentitiesOnly=yes admin@${ELASTIC_IP}
 ```

@@ -1,5 +1,4 @@
-Description: >
-  CloudFormation template for deploying the MySQL instance within the cct demo on iaas
+Description: CloudFormation template for deploying the MySQL instance within the cct demo on iaas
 
 Parameters:
   KeyPairName:
@@ -44,12 +43,6 @@ Resources:
             #cloud-config
             #
             # provisioning script of mysql db for debian-based distro
-            package_reboot_if_required: true
-            package_update: true
-            package_upgrade: true
-            packages:
-              - gnupg
-
             write_files:
             - content: |
                 CREATE DATABASE cct;
@@ -57,18 +50,37 @@ Resources:
                 GRANT ALL PRIVILEGES ON cct.* TO 'cct'@'%';
                 FLUSH PRIVILEGES;
               path: /init.sql
+            - content: |
+                #!/bin/bash
+                while true
+                do
+                  if ping -c 1 -W 2 "8.8.8.8" &>/dev/null; then
+                    echo "$(date) - Internet is reachable."
+                    break
+                  else
+                    echo "$(date) - Internet is unreachable."
+                    sleep 3
+                  fi
+                done
+                apt -y update
+                apt -y upgrade
+                apt -y install gnupg
+
+                wget "https://dev.mysql.com/get/mysql-apt-config_0.8.33-1_all.deb"
+                export DEBIAN_FRONTEND=noninteractive && dpkg -i mysql-apt-config_0.8.33-1_all.deb
+                rm mysql-apt-config_0.8.33-1_all.deb
+                apt -y update
+                apt -y install mysql-server
+                mysql -u root < /init.sql
+                wget "https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/refs/heads/main/sqldb/seed.sql"
+                mysql -u cct --password=cct-secret cct < seed.sql
+                rm seed.sql
+                systemctl restart mysql
+              path: /init.sh
 
             runcmd:
-              - [wget, "https://dev.mysql.com/get/mysql-apt-config_0.8.33-1_all.deb"]
-              - export DEBIAN_FRONTEND=noninteractive && dpkg -i mysql-apt-config_0.8.33-1_all.deb
-              - rm mysql-apt-config_0.8.33-1_all.deb
-              - apt update
-              - apt -y install mysql-server
-              - mysql -u root < /init.sql
-              - [wget, "https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/refs/heads/main/sqldb/seed.sql"]
-              - mysql -u cct --password=cct-secret cct < seed.sql
-              - rm seed.sql
-              - systemctl restart mysql
+              - chmod +x /init.sh
+              - /init.sh
         TagSpecifications:
           - ResourceType: instance
             Tags:
@@ -79,4 +91,4 @@ Resources:
     Properties:
       LaunchTemplate:
         LaunchTemplateId: !Ref SqlDbLaunchTemplate
-        Version: !GetAtt SqlDbLaunchTemplate.DefaultVersionNumber
+        Version: !GetAtt SqlDbLaunchTemplate.LatestVersionNumber
