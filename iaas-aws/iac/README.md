@@ -69,7 +69,7 @@ aws ssm get-parameter \
 chmod 400 demo-key-pair.pem
 ```
 
-After creating the stack, the instances can be accessed with SSH:
+After creating the stack, the instances can be accessed with SSH using an Elastic IP address (which needs to be created and associated to the instance you want to connect to).
 
 ```bash
 ELASTIC_IP="$(aws ec2 describe-addresses \
@@ -78,3 +78,13 @@ ELASTIC_IP="$(aws ec2 describe-addresses \
     --output text)"
 ssh -i "demo-key-pair.pem" -o IdentitiesOnly=yes admin@${ELASTIC_IP}
 ```
+
+### NAT Gateway
+
+Instances in a private subnet can access internet only if they are created with a public IP address associated. Without a public IP, we need to deploy an additional [NAT Gateway](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html). 
+
+---
+
+## Load Balancer
+
+The CloudFormation script also includes a load balancer that balance traffic among the registered instances. These instances are added to an autoscaling group: instances associated to this group can scale manually, or using a [dynamic policy](https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scale-based-on-demand.html). The listener of the Load balancer is then configured to forward traffic coming from port 80 to one of the registered instances (port 5000) in the autoscaling group.
