@@ -1,0 +1,52 @@
+Description: Api Gateway for the Lambda invocation
+
+Parameters:
+  GetDataLambdaArn:
+    Description: Arn of the Lambda that gets account data
+    Type: String
+
+Outputs:
+  Endpoint:
+    Description: The endpoint to connect to the API Gateway
+    Value: !Sub https://${HTTPApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
+
+Resources:
+  HTTPApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      ProtocolType: HTTP
+      Name: apigw-demo-cct
+  LambdaIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HTTPApi
+      PassthroughBehavior: WHEN_NO_MATCH
+      TimeoutInMillis: 21000
+      IntegrationMethod: POST
+      IntegrationType: AWS_PROXY
+      PayloadFormatVersion: "2.0"
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetDataLambdaArn}/invocations"
+  GetDataRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HTTPApi
+      AuthorizationType: NONE
+      RouteKey: "GET /accounts.html"
+      Target: !Join
+        - /
+        - - integrations
+          - !Ref LambdaIntegration
+  Deployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - GetDataRoute
+    Properties:
+      Description: API Deployment
+      ApiId: !Ref HTTPApi
+  Stage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      DeploymentId: !Ref Deployment
+      Description: Stage v1
+      ApiId: !Ref HTTPApi
+      StageName: "v1"

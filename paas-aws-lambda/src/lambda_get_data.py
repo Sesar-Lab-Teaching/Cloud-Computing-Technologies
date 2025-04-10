@@ -1,5 +1,6 @@
 import os
 import socket
+import json
 import mysql.connector
 from mysql.connector import errorcode
 
@@ -65,8 +66,25 @@ def handler(event, context):
             print("Database does not exist")
         else:
             print(err)
+        return json.dumps({
+            "isBase64Encoded": False,
+            "statusCode": 400,
+            "headers": { 
+                "Content-Type": "application/json"
+            },
+            "body": {
+                "error": str(err)
+            }
+        })
     else:
         if connection.is_connected():
             cursor.close()
         connection.close()
-        return html
+        return json.dumps({
+            "isBase64Encoded": False,
+            "statusCode": 200,
+            "headers": { 
+                "Content-Type": "text/html"
+            },
+            "body": html
+        })

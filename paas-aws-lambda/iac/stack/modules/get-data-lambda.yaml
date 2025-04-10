@@ -32,6 +32,11 @@ Parameters:
     Description: Port of the Db instance
     Type: String
 
+Outputs:
+  LambdaArn:
+    Description: Arn of the created Lambda
+    Value: !GetAtt GetDataLambda.Arn
+
 Resources:
   GetDataLambda:
     Type: AWS::Lambda::Function

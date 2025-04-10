@@ -74,7 +74,7 @@ function upload_templates {
     for child_template in stack/modules/*
     do
         echo "Uploading $child_template"
-        aws cloudformation validate-template --template-body file://$child_template && \
+        aws cloudformation validate-template --template-body file://$child_template > /dev/null && \
         aws s3 cp $child_template "s3://$BUCKET_NAME/paas/cfn-templates/$(basename "$child_template")"
     done
 }
@@ -95,7 +95,8 @@ aws cloudformation create-stack \
         {
             \"ParameterKey\": \"ECRGetDataLambdaRepository\",
             \"ParameterValue\": \"$GET_DATA_LAMBDA_REPO_URI\"
-        },
+        }
     ]" \
+    --capabilities CAPABILITY_NAMED_IAM \
     --template-body file://stack/root.yaml
 ```

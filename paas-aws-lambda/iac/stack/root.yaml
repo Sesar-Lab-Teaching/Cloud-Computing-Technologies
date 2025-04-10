@@ -18,6 +18,14 @@ Parameters:
     Type: String
     Default: demopassword
 
+Outputs:
+  SeedDbLambdaArn:
+    Description: Arn of the Lambda that seeds the Db
+    Value: !GetAtt SeedDbLambdaStack.Outputs.LambdaArn
+  ApiGatewayEndpoint:
+    Description: Endpoint of the api gateway
+    Value: !GetAtt ApiGateway.Outputs.Endpoint
+
 Resources:
   NetworkingStack:
     Type: AWS::CloudFormation::Stack
@@ -69,17 +77,31 @@ Resources:
         DbEndpoint: !GetAtt RDSStack.Outputs.Endpoint
         DbPort: !GetAtt RDSStack.Outputs.Port
 
-
-  # DemoCCTWebserverStack:
-  #   Type: AWS::CloudFormation::Stack
-  #   Properties:
-  #     TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/iaas/cfn-templates/webserver.yaml'
-  #     Tags:
-  #       - Key: Environment
-  #         Value: demo-cct
-  #     Parameters:
-  #       VpcId: !GetAtt DemoCCTNetworkingStack.Outputs.VpcId
-  #       KeyPairName: !GetAtt DemoCCTNetworkingStack.Outputs.KeyPair
-  #       SubnetId: !GetAtt DemoCCTNetworkingStack.Outputs.SubnetId
-  #       SecGroupId: !GetAtt DemoCCTNetworkingStack.Outputs.SecGroupId
-  #       SqlDbIPAddress: !GetAtt DemoCCTSqlDbStack.Outputs.SqlInstanceIpAddress
+  GetDataLambdaStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/paas/cfn-templates/get-data-lambda.yaml'
+      Tags:
+        - Key: Environment
+          Value: demo-cct-paas
+      Parameters:
+        ECRLambdaRepository: !Ref ECRGetDataLambdaRepository
+        RoleArn: !GetAtt AuthorizationStack.Outputs.LambdaRoleArn
+        SecGroup: !GetAtt NetworkingStack.Outputs.SecGroup
+        Subnet1Id: !GetAtt NetworkingStack.Outputs.Subnet1Id
+        Subnet2Id: !GetAtt NetworkingStack.Outputs.Subnet2Id
+        DbName: !Ref DbName
+        DbUsername: !Ref DbUsername
+        DbPassword: !Ref DbPassword
+        DbEndpoint: !GetAtt RDSStack.Outputs.Endpoint
+        DbPort: !GetAtt RDSStack.Outputs.Port
+    
+  ApiGateway:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/paas/cfn-templates/api-gateway.yaml'
+      Tags:
+        - Key: Environment
+          Value: demo-cct-paas
+      Parameters:
+        GetDataLambdaArn: !GetAtt GetDataLambdaStack.Outputs.LambdaArn
