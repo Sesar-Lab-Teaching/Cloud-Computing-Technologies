@@ -1,5 +1,4 @@
-Description: >
-  CloudFormation template for deploying the network 
+Description: CloudFormation template for deploying the network
 
 Parameters:
   DbName:
@@ -22,9 +21,12 @@ Parameters:
     Type: String
 
 Outputs:
-  VpcId:
-    Description: "The ID of the VPC"
-    Value: !Ref VPC
+  Endpoint:
+    Description: endpoint at which the db is exposed
+    Value: !GetAtt RDSInstance.Endpoint.Address
+  Port:
+    Description: port at which the db is exposed
+    Value: !GetAtt RDSInstance.Endpoint.Port
 
 Resources:
   RDSSubnetGroup:

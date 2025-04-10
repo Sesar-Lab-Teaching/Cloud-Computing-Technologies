@@ -1,0 +1,23 @@
+Description: CloudFormation template for deploying the authorization resources necessary for lambda
+
+Outputs:
+  LambdaRoleArn:
+    Description: Role for the Lambda execution
+    Value: !GetAtt LambdaRole.Arn
+
+Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      RoleName: demo-cct-lambda-role

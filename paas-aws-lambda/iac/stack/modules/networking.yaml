@@ -1,16 +1,12 @@
-Description: >
-  CloudFormation template for deploying the network 
+Description: CloudFormation template for deploying the network 
 
 Outputs:
-  VpcId:
-    Description: The ID of the VPC
-    Value: !Ref VPC
   Subnet1Id:
     Description: The ID of the Subnet 1 within the VPC
-    Value: !Ref Subnet
+    Value: !Ref Subnet1
   Subnet2Id:
     Description: The ID of the Subnet 2 within the VPC
-    Value: !Ref Subnet
+    Value: !Ref Subnet2
   SecGroup:
     Description: Security group allowing connections within the group
     Value: !Ref SecGroup

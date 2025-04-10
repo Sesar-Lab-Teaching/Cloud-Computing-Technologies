@@ -1,4 +1,4 @@
-Description: CloudFormation template for deploying the Lambda that will seed the DB
+Description: CloudFormation template for deploying the Lambda that will get account data
 
 Parameters:
   ECRLambdaRepository:
@@ -33,7 +33,7 @@ Parameters:
     Type: String
 
 Resources:
-  SeedDbLambda:
+  GetDataLambda:
     Type: AWS::Lambda::Function
     Properties:
       Code: 
@@ -44,8 +44,8 @@ Resources:
           MYSQL_USER: !Ref DbUsername
           MYSQL_PASSWORD: !Ref DbPassword
           MYSQL_DATABASE: !Ref DbName
-          MYSQL_PORT: !Ref DbUsername
-      FunctionName: demo-cct-lambda-seed-db
+          MYSQL_PORT: !Ref DbPort
+      FunctionName: demo-cct-lambda-get-data
       PackageType: Image
       Role: !Ref RoleArn
       Timeout: 20
@@ -55,3 +55,9 @@ Resources:
         SubnetIds: 
           - !Ref Subnet1Id
           - !Ref Subnet2Id
+  ApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GetDataLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
