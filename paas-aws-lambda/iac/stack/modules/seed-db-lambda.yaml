@@ -1,0 +1,39 @@
+Description: >
+  CloudFormation template for deploying the Lambda that will seed the DB
+
+Outputs:
+  VpcId:
+    Description: The ID of the VPC
+    Value: !Ref DemoCCTVPC
+
+Resources:
+  ECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      EmptyOnDelete: true
+      ImageTagMutability: MUTABLE
+      RepositoryName: demo-cct-lambda-seed-db
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+  SeedDbLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code: 
+        ImageUri: ...
+      Environment:
+        Variables:
+          MYSQL_HOST: $DB_ENDPOINT,
+          MYSQL_USER: $MYSQL_MASTER_USERNAME,
+          MYSQL_PASSWORD: $MYSQL_MASTER_PASSWORD,
+          MYSQL_DATABASE: $MYSQL_DATABASE,
+          MYSQL_PORT: $MYSQL_PORT
+      FunctionName: demo-cct-lambda-seed-db
+      PackageType: Image
+      RecursiveLoop: String
+      ReservedConcurrentExecutions: Integer
+      Role: String
+      Runtime: String
+      Timeout: 20
+      VpcConfig: 
+        VpcConfig

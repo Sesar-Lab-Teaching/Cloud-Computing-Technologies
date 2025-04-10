@@ -1,0 +1,54 @@
+Description: >
+  CloudFormation template for deploying the network 
+
+Parameters:
+  DbName:
+    Description: The name of the database
+    Type: String
+  DbUsername:
+    Description: username to access the db
+    Type: String
+  DbPassword:
+    Description: password to access the db
+    Type: String
+  SecGroup:
+    Description: VPC Security group of the DB
+    Type: String
+  Subnet1Id:
+    Description: The ID of the Subnet 1 within the VPC
+    Type: String
+  Subnet2Id:
+    Description: The ID of the Subnet 2 within the VPC
+    Type: String
+
+Outputs:
+  VpcId:
+    Description: "The ID of the VPC"
+    Value: !Ref VPC
+
+Resources:
+  RDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for the demo on paas
+      DBSubnetGroupName: demo-cct-subnet-group
+      SubnetIds: 
+        - !Ref Subnet1Id
+        - !Ref Subnet2Id
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: '10'
+      DBInstanceClass: 'db.t3.small'
+      DBInstanceIdentifier: 'demo-cct-db'
+      DBName: !Ref DbName
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      Engine: mysql
+      EngineVersion: "8.4.4"
+      MasterUsername: !Ref DbUsername
+      MasterUserPassword: !Ref DbPassword
+      Port: '3306'
+      PubliclyAccessible: false
+      VPCSecurityGroups: 
+        - !Ref SecGroup

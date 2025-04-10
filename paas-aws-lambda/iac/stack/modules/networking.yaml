@@ -1,0 +1,55 @@
+Description: >
+  CloudFormation template for deploying the network 
+
+Outputs:
+  VpcId:
+    Description: The ID of the VPC
+    Value: !Ref VPC
+  Subnet1Id:
+    Description: The ID of the Subnet 1 within the VPC
+    Value: !Ref Subnet
+  Subnet2Id:
+    Description: The ID of the Subnet 2 within the VPC
+    Value: !Ref Subnet
+  SecGroup:
+    Description: Security group allowing connections within the group
+    Value: !Ref SecGroup
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/23
+  Subnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: 
+        Fn::Select: 
+          - 0
+          - Fn::GetAZs: ""
+  Subnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.0.1/24
+      AvailabilityZone: 
+        Fn::Select: 
+          - 1
+          - Fn::GetAZs: ""
+  SecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: DemoCCTSecGroup
+      GroupDescription: Security group for Demo
+      VpcId: !Ref VPC
+  SecGroupIngressRuleAllowFromSameSecGroup:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow connections from same Security group
+      GroupId: !Ref SecGroup
+      FromPort: 0
+      IpProtocol: tcp
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref SecGroup

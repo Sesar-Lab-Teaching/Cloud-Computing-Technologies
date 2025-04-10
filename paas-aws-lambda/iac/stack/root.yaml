@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  NetworkingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/paas/cfn-templates/networking.yaml'
+      Tags:
+        - Key: Environment
+          Value: demo-cct-paas
+
+  RDSStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/paas/cfn-templates/db.yaml'
+      Tags:
+        - Key: Environment
+          Value: demo-cct-paas
+      Parameters:
+        DbName: democct
+        DbUsername: demouser
+        DbPassword: demopassword
+        SecGroup: !GetAtt NetworkingStack.Outputs.SecGroup
+        Subnet1Id: !GetAtt NetworkingStack.Outputs.Subnet1Id
+        Subnet2Id: !GetAtt NetworkingStack.Outputs.Subnet2Id
+
+
+  # DemoCCTWebserverStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/iaas/cfn-templates/webserver.yaml'
+  #     Tags:
+  #       - Key: Environment
+  #         Value: demo-cct
+  #     Parameters:
+  #       VpcId: !GetAtt DemoCCTNetworkingStack.Outputs.VpcId
+  #       KeyPairName: !GetAtt DemoCCTNetworkingStack.Outputs.KeyPair
+  #       SubnetId: !GetAtt DemoCCTNetworkingStack.Outputs.SubnetId
+  #       SecGroupId: !GetAtt DemoCCTNetworkingStack.Outputs.SecGroupId
+  #       SqlDbIPAddress: !GetAtt DemoCCTSqlDbStack.Outputs.SqlInstanceIpAddress

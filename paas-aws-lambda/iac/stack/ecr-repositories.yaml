@@ -1,0 +1,27 @@
+Outputs:
+  SeedDbLambdaRepoUri:
+    Description: ECR Repository of the seed-db Lambda
+    Value: !GetAtt ECRSeedDbLambdaRepository.RepositoryUri
+
+  GetDataLambdaRepoUri:
+    Description: ECR Repository of the get-data Lambda
+    Value: !GetAtt ECRGetDataLambdaRepository.RepositoryUri
+
+Resources:
+  ECRSeedDbLambdaRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      EmptyOnDelete: true
+      ImageTagMutability: MUTABLE
+      RepositoryName: demo-cct-lambda-seed-db
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+  ECRGetDataLambdaRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      EmptyOnDelete: true
+      ImageTagMutability: MUTABLE
+      RepositoryName: demo-cct-lambda-get-data
+      ImageScanningConfiguration:
+        ScanOnPush: true
