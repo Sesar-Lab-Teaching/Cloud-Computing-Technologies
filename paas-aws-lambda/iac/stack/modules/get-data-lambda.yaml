@@ -42,7 +42,11 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Code: 
-        ImageUri: !Ref ECRLambdaRepository
+        ImageUri:
+          !Join
+            - ':'
+            - - !Ref ECRLambdaRepository
+              - 'latest'
       Environment:
         Variables:
           MYSQL_HOST: !Ref DbEndpoint
@@ -53,7 +57,7 @@ Resources:
       FunctionName: demo-cct-lambda-get-data
       PackageType: Image
       Role: !Ref RoleArn
-      Timeout: 20
+      Timeout: 21
       VpcConfig: 
         SecurityGroupIds: 
           - !Ref SecGroup

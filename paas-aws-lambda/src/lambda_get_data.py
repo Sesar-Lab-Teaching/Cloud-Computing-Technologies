@@ -66,7 +66,7 @@ def handler(event, context):
             print("Database does not exist")
         else:
             print(err)
-        return json.dumps({
+        return {
             "isBase64Encoded": False,
             "statusCode": 400,
             "headers": { 
@@ -75,16 +75,17 @@ def handler(event, context):
             "body": {
                 "error": str(err)
             }
-        })
+        }
     else:
         if connection.is_connected():
             cursor.close()
         connection.close()
-        return json.dumps({
+        return {
+            "cookies" : [],
             "isBase64Encoded": False,
             "statusCode": 200,
             "headers": { 
-                "Content-Type": "text/html"
+                "content-type": "text/html"
             },
             "body": html
-        })
+        }

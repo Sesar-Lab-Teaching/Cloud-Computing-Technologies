@@ -42,14 +42,18 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Code: 
-        ImageUri: !Ref ECRLambdaRepository
+        ImageUri: 
+          !Join
+            - ':'
+            - - !Ref ECRLambdaRepository
+              - 'latest'
       Environment:
         Variables:
           MYSQL_HOST: !Ref DbEndpoint
           MYSQL_USER: !Ref DbUsername
           MYSQL_PASSWORD: !Ref DbPassword
           MYSQL_DATABASE: !Ref DbName
-          MYSQL_PORT: !Ref DbUsername
+          MYSQL_PORT: !Ref DbPort
       FunctionName: demo-cct-lambda-seed-db
       PackageType: Image
       Role: !Ref RoleArn

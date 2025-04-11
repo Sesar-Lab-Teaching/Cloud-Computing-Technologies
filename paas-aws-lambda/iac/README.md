@@ -2,11 +2,11 @@
 
 Similarly to what we have done with IaaS, we can provision the PaaS infrastructure for the demo scenario using CloudFormation. The services we are going to use are:
 
-- `RDS` - The database containing user data
-- `Lambda` - 2 Lamdba functions:
+- **RDS** - The database containing user data
+- **Lambda** - 2 Lamdba functions:
     - `demo-cct-lambda-seed-db`: seeds the database with initial data
     - `demo-cct-lambda-get-data`: query the database to get accounts data
-- `API Gateway` - Make Lambda Functions callable using HTTP requests
+- **API Gateway** - Make Lambda Functions callable using HTTP requests
 
 ---
 
@@ -100,3 +100,44 @@ aws cloudformation create-stack \
     --capabilities CAPABILITY_NAMED_IAM \
     --template-body file://stack/root.yaml
 ```
+
+To delete the stack:
+
+```bash
+aws cloudformation delete-stack --stack-name demo-cct-paas
+```
+
+---
+
+## DB Initialization
+
+We need to create the accounts table in the database and fill it with sample records. We can do it by running the lambda function, whose ARN is one of the CFN stack's output:
+
+```bash
+SEED_DB_LAMBDA_ARN="$(aws cloudformation describe-stacks \
+    --stack-name demo-cct-paas \
+    --output text \
+    --query "Stacks[0].Outputs[?OutputKey == 'SeedDbLambdaArn'].OutputValue")"
+```
+
+Run the Lambda with:
+
+```bash
+aws lambda invoke --function-name "$SEED_DB_LAMBDA_ARN" response.json
+```
+
+---
+
+## Api Gateway
+
+After deploying the stack, we can reach the API Gateway by retrieving its endpoint from the stack output.
+
+```bash
+APIGW_ENDPOINT="$(aws cloudformation describe-stacks \
+    --stack-name demo-cct-paas \
+    --output text \
+    --query "Stacks[0].Outputs[?OutputKey == 'ApiGatewayEndpoint'].OutputValue")"
+echo "$APIGW_ENDPOINT"
+```
+
+Now you can query the API Gateway endpoint at `$APIGW_ENDPOINT/accounts.html`.
