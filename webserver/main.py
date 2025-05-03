@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 
 import socket
-from flask import Flask, jsonify
+from flask import Flask, jsonify, current_app
 from flask_mysqldb import MySQL
 
 load_dotenv()
@@ -15,16 +15,23 @@ app.config['MYSQL_USER'] = os.getenv('MYSQL_USER')
 app.config['MYSQL_PASSWORD'] = os.getenv('MYSQL_PASSWORD')
 app.config['MYSQL_DB'] = os.getenv('MYSQL_DATABASE')
 app.config['MYSQL_PORT'] = int(os.getenv('MYSQL_PORT'))
+app.config['IS_SERVER_HEALTHY'] = True
 
 mysql = MySQL(app)
 
 local_hostname = socket.gethostname()
 
 
+@app.route('/make-unhealthy', methods=['GET'])
+def make_unhealthy():
+    current_app.config['IS_SERVER_HEALTHY'] = False
+    return 'Server is now unhealthy'
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({
-        'ok': True
+        'ok': current_app.config['IS_SERVER_HEALTHY']
     })
 
 
@@ -68,4 +75,5 @@ def get_data():
             <p>Hostname: {local_hostname}</p>
         </body>
     </html>'''
+    
     return html

@@ -14,7 +14,7 @@ docker build -t my_image_name .
 
 Or we can let Dockercompose do it:
 
-```
+```yaml
 services:
   webserver:
     build:
@@ -36,8 +36,8 @@ The compose file includes 3 containers:
 
 To run it, use:
 
-```
-docker compose up -d # add `--build` to recreate the webserver image
+```bash
+docker compose --project-name cct up -d --build
 ```
 
 ### Networking
@@ -48,7 +48,7 @@ The only port we need to map is `5000`, which is exposed by the webserver. On th
 
 ### Healthcheck and dependencies
 
-When the MySQL containers starts, it is not immediately ready to accept connections from the webserver. The container is marked as *healthy* when it satisfies the `healthcheck`: for at most 6 times, the `test` command pings the MySQL server for a SQL connection until it receives a successful response. The timeout for each ping is 5 seconds and the delay between 2 consecutive pings is 3 seconds.
+When the MySQL containers starts, it is not immediately ready to accept connections from the webserver. The container is marked as *healthy* when it satisfies the `healthcheck` test command, which is re-executed every `interval` seconds.
 
 Once the MySQL container is healthy, the `seeder` container can initialize the *accounts* table and insert data into it. The `seeder` execution depends on the MySQL thanks to this statement:
 

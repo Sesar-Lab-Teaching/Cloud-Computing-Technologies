@@ -142,4 +142,4 @@ ENV/
 .mypy_cache/
 
 # custom
-seed.sql
+provision-webserver.yaml
