@@ -17,6 +17,6 @@ COPY . /app
 EXPOSE 80
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
-  CMD test "$(curl -f http://localhost/health | jq -r '.ok')" = "true" || exit 1
+  CMD test "$(curl -f -s http://localhost/health | jq -r '.ok')" = "true" || exit 1
 
 ENTRYPOINT [ "flask", "--app", "main.py", "run", "--port=80", "--host=0.0.0.0" ]
