@@ -32,7 +32,7 @@ def make_unhealthy():
 def health_check():
     return jsonify({
         'ok': current_app.config['IS_SERVER_HEALTHY']
-    })
+    }), (200 if current_app.config['IS_SERVER_HEALTHY'] else 500)
 
 
 @app.route('/')
