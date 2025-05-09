@@ -12,9 +12,14 @@ app = Flask(__name__)
 
 app.config['MYSQL_HOST'] = os.getenv('MYSQL_HOST')
 app.config['MYSQL_USER'] = os.getenv('MYSQL_USER')
-app.config['MYSQL_PASSWORD'] = os.getenv('MYSQL_PASSWORD')
 app.config['MYSQL_DB'] = os.getenv('MYSQL_DATABASE')
 app.config['MYSQL_PORT'] = int(os.getenv('MYSQL_PORT'))
+if os.getenv('MYSQL_PASSWORD_FILE') is not None:
+    with open(os.getenv('MYSQL_PASSWORD_FILE'), "r") as password_file:
+        app.config['MYSQL_PASSWORD'] = password_file.read()
+else:
+    app.config['MYSQL_PASSWORD'] = os.getenv('MYSQL_PASSWORD')
+
 app.config['IS_SERVER_HEALTHY'] = True
 
 mysql = MySQL(app)

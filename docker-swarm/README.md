@@ -256,21 +256,26 @@ Therefore, when you deploy a service with replicated mode and specify a named vo
 
 For the Bank scenario, we need 1 MySQL container and 2 instances (replicas) of the WebServer. First, we need to copy on the manager node the following files:
 
-- `.dockerignore`
 - `docker-compose.yml`
-- `Dockerfile`
-- `main.py`
 - `mysql_pwd.secret`
-- `requirements.txt`
 - `seed.sql`
 
-If you are using Vagrant, you just need to copy them in the same folder where the `Vagrantfile` is placed; that folder is mounted on the `/vagrant` folder in the guest machine. With Play with Docker, you may need to copy them using `sftp` for example (or just copy & paste the content file by file).
+If you are using Vagrant, you just need to copy them in the same folder where the `Vagrantfile` is placed; that folder is mounted on the `/vagrant` folder in the guest machine.
+
+```bash
+mkdir -p vagrant_setup/deploy
+cp ./docker-compose.yml ./vagrant_setup/deploy/docker-compose.yml
+cp ./mysql_pwd.secret ./vagrant_setup/deploy/mysql_pwd.secret
+cp ../sqldb/seed.sql ./vagrant_setup/deploy/seed.sql
+```
+
+With Play with Docker, you may need to copy them using `sftp` for example (or just copy & paste the content file by file).
 
 The `docker-compose.yml` file contains the necessary instructions to provision the containers (including the replicas). A docker compose file for `docker stack` usually includes a further command: the `deploy`. It accepts a map with the configurations for the replica, deployment mode, restart policy, etc.
 
 Since you cannot create on-the-fly images in the Docker-compose file (so the web application image must be available on a Docker registry), we need to create a local Docker registry in the manager node and push the image to it:
 
-```
+```bash
 # manager
 cd /vagrant/deploy # cd on the folder where you have copied the files
 MANAGER_IP="$(docker node inspect self --format '{{ .Status.Addr }}')"
@@ -280,7 +285,7 @@ docker build -t bank-app:1.0 -t "$MANAGER_IP:5001/bank-app:1.0" .
 
 Before pushing the image, we need to mark the manager registry as an unsafe registry due to the absence of HTTPS support:
 
-```
+```bash
 # only workers
 MANAGER_IP="$(docker info -f '{{ (index .Swarm.RemoteManagers 0).Addr }}' | cut -d':' -f1)"
 
@@ -294,20 +299,39 @@ sudo systemctl restart docker # or follow this for play with docker: https://sta
 
 Now we can push the image:
 
-```
+```bash
 docker push "$MANAGER_IP:5001/bank-app:1.0"
 ```
 
-Before deploying the stack, we need to configure all the nodes with the `.env` file.
+Alternatively, you can push the image on a public registry like Docker Hub and use it with `{your_username}/{image_name}:{tag}`.
 
-Next create a stack with:
+Next ssh into the manager VM and deploy the stack:
 
+```bash
+cd /vagrant/deploy
+docker stack deploy -c docker-compose.yml cct-demo
 ```
-# manager
-REGISTRY_IP="$MANAGER_IP" REGISTRY_PORT=5001 docker stack deploy -c docker-compose.yml bank
+
+To monitor the deployment you can:
+
+- use the `ps` command: `docker stack ps --no-trunc cct-demo`.
+- `docker stack services cct-demo` shows an overview of the current state of the deployment
+
+To monitor the single services you can run `docker service inspect cct-demo_app` and `docker service logs cct-demo_app`.
+
+To destroy the stack:
+
+```bash
+docker stack rm cct-demo
 ```
 
-The services should be up and running, test it by invoking the webserver endpoint `http://{ANY_IP_IN_THE_CLUSTER}:5000`. The *Hostname* field in the HTML page should change on every page reload: this is the effect of the Swarm Load balancer that applies a round robin policy on the nodes hosting the webserver tasks.
+---
+
+### Testing the webserver
+
+The services should be up and running, test it by invoking the webserver endpoint `http://192.168.56.(211|221|222):5000`. The *Hostname* field in the HTML page should change on every page reload: this is the effect of the Swarm Load balancer that applies a round robin policy on the nodes hosting the webserver tasks.
+
+Calling the `/make-unhealthy` API makes a task fail and, after the being marked as unhealthy, it is replaced by a new task, i.e. a new container is spawned. The unhealthy container is only shut down, instead of being completely removed. In this way, you can troubleshoot the cause of failure.
 
 ### Scaling the Web server
 

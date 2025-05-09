@@ -6,7 +6,7 @@ x-common-env: &shared-env
 
 services:
   db:
-    image: mysql
+    image: mysql:8.4.0
     environment:
       <<: *shared-env
       MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql-password
@@ -28,7 +28,7 @@ services:
       - mysql-password
 
   seeder:
-    image: mysql
+    image: mysql:8.4.0
     entrypoint:
       - bash
       - -c
@@ -50,7 +50,7 @@ services:
       replicas: 1
       restart_policy:
         condition: on-failure
-        delay: 6s
+        delay: 10s
         max_attempts: 10
     depends_on:
       - db
@@ -60,7 +60,7 @@ services:
       - db-seed-sql
 
   app:
-    image: "$REGISTRY_IP:$REGISTRY_PORT/bank-app:1.0"
+    image: "maluz/webserver-cct-demo:1.0"
     deploy:
       mode: replicated
       replicas: 2
@@ -70,7 +70,7 @@ services:
       <<: *shared-env
       MYSQL_HOST: db
     ports:
-      - "5000:5000"
+      - "5000:80"
     secrets:
       - mysql-password
 
