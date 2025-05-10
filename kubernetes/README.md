@@ -11,8 +11,9 @@ Sources:
 
 The easiest way to locally create a Kubernetes cluster is through [Minikube](https://minikube.sigs.k8s.io/docs/start/). For this guide, we are going to use a multi-node cluster:
 
-```
+```bash
 minikube start --nodes 2 -p kube-demo
+# Run the next command if you have not installed `kubectl` package
 alias kubectl="minikube -p kube-demo kubectl --"
 ```
 
@@ -20,19 +21,15 @@ On system restart, you need to restart the Minikube as well, running `minikube s
 
 To verify that the cluster has been created:
 
-```
+```bash
 minikube profile list
 ```
 
 Should display a similar table:
 
-```
-|-----------|-----------|---------|--------------|------|---------|---------|-------|--------|
 |  Profile  | VM Driver | Runtime |      IP      | Port | Version | Status  | Nodes | Active |
-|-----------|-----------|---------|--------------|------|---------|---------|-------|--------|
+| --------- | --------- | ------- | ------------ | ---- | ------- | ------- | ----- | ------ |
 | kube-demo | docker    | docker  | 192.168.49.2 | 8443 | v1.28.3 | Running |     2 |        |
-|-----------|-----------|---------|--------------|------|---------|---------|-------|--------|
-```
 
 To examine the status of the cluster (and its nodes):
 
@@ -147,7 +144,7 @@ StatefulSets are intended to be used with stateful applications and distributed 
 
 StatefulSet Pods have a unique identity that consists of an ordinal, a stable network identity, and stable storage. The identity sticks to the Pod, regardless of which node it's (re)scheduled on. For a StatefulSet with N replicas, each Pod in the StatefulSet will be assigned an integer ordinal, that is unique over the Set. By default, pods will be assigned ordinals from 0 up through N-1.
 
-Each Pod in a StatefulSet derives its hostname from the name of the StatefulSet and the ordinal of the Pod. The pattern for the constructed hostname is `$(statefulset name)-$(ordinal)`. The example above will create three Pods named web-0,web-1,web-2. A StatefulSet can use a Headless Service to control the domain of its Pods.
+Each Pod in a StatefulSet derives its hostname from the name of the StatefulSet and the ordinal of the Pod. The pattern for the constructed hostname is `$(statefulset name)-$(ordinal)`. The example above will create three Pods named web-0,web-1,web-2. A StatefulSet can use a Headless Service to control the domain of its Pods. To reach an instance of a Statefulset, you can prepend the pod name to the headless service DNS, e.g. `web-1.web-service.default.svc.cluster.local`.
 
 For each `VolumeClaimTemplate` entry defined in a StatefulSet, each Pod receives one `PersistentVolumeClaim`. If no StorageClass is specified, then the default StorageClass will be used. When a Pod is (re)scheduled onto a node, its volumeMounts mount the PersistentVolumes associated with its PersistentVolume Claims. Note that, the PersistentVolumes associated with the Pods' PersistentVolume Claims are not deleted when the Pods, or StatefulSet are deleted. This must be done manually.
 
@@ -185,43 +182,43 @@ Then push the webserver image to a public registry (or use the `maluz/webserver-
 
 To deploy the bank scenario, run:
 
-```
+```bash
 kubectl apply -f deploy
 ```
 
 It will apply all the configuration files it finds in the current folder. The resources controllers detect that the desired state is different from the current one and will start deploying the resources. To follow the resources creation sequence, you can run `kubectl events`, otherwise use `kubectl get` with the resource type you are interested in. For example, to retrieve the deployment info, run
 
-```
+```bash
 kubectl get deployment
 ```
 
 To get the events and the current statys of the deployment, run
 
-```
+```bash
 kubectl describe deployment webserver-deployment
 ```
 
 where `webserver-deployment` is the resource name for our deployment. Instead, to retrieve the node info and the pod that it hosts, then
 
-```
+```bash
 kubectl describe node kube-demo
 ```
 
 To list all the pods, run
 
-```
+```bash
 kubectl get pods
 ```
 
 Then, you can inspect the logs (and eventually troubleshoot):
 
-```
+```bash
 kubectl logs webserver-deployment-<deployment_id>-<pod_id>
 ```
 
 Finally, the last resource type we have to analyze is service:
 
-```
+```bash
 kubectl get service
 ```
 
@@ -230,12 +227,12 @@ And the output will be similar to:
 ```
 NAME                TYPE           CLUSTER-IP       EXTERNAL-IP      PORT(S)        AGE
 mysql-service       ClusterIP      None             <none>        3306/TCP       6m37s
-webserver-service   LoadBalancer   10.105.227.121   <pending>     80:30533/TCP   6m37s
+webserver-service   LoadBalancer   10.100.224.10    <pending>     80:30533/TCP   6m37s
 ```
 
 While the `mysql-server` is a `ClusterIP` and its virtual IP addresses is exposed internally, the `webserver-service` is a `LoadBalancer` and needs an external IP from the pool of available IPs. If you are using Minikube, you will see the status `<pending>` because the host tunneling is not enabled yet. To reserve a host IP address for the Minikube cluster, run:
 
-```
+```bash
 # to run in a new terminal
 minikube -p kube-demo tunnel
 ```
@@ -249,10 +246,51 @@ webserver-service   LoadBalancer   10.104.20.24   10.104.20.24   80:31137/TCP
 
 Finally to delete all the created resource:
 
-```
+```bash
 kubectl delete -f deploy
 ```
+
+---
 
 ### Scaling the replicas
 
 To scale the number of replicas, you can use both the CLI (with `kubectl scale`) or update the YAML configurations for the deployment resource. Then, run again `kubectl apply -f deploy` and Kubernetes automatically detects that the desired state is different, i.e. a new replica is requested, and spawn a new pod.
+
+---
+
+### Auto healing and auto scaling
+
+Docker healthcheck are ignored in Kubernetes, instead we can use readiness and liveness probes:
+
+> The kubelet uses liveness probes to know when to restart a container. For example, liveness probes could catch a deadlock, where an application is running, but unable to make progress. Restarting a container in such a state can help to make the application more available despite bugs.
+
+> The kubelet uses readiness probes to know when a container is ready to start accepting traffic. One use of this signal is to control which Pods are used as backends for Services. A Pod is considered ready when its Ready condition is true. When a Pod is not ready, it is removed from Service load balancers.
+
+For the webserver we have specified a readiness probe, which determines whether the webserver is ready to accept connections. If the probe fails, the pod is marked as *NotReady* and is removed from the Load Balancing service. Nonetheless, it is not restarted or replaced by a new pod, meaning that the deployment set will still have 2 pods, but only one of them will receive traffic.
+
+The autoscaling component scales out/in pod depending on the monitored metrics, which are exposed by a metrics server. To enable its addon on Minikube, run
+
+```bash
+minikube addons -p kube-demo enable metrics-server
+# restart Minikube
+minikube start -p kube-demo
+```
+
+Repeatedly call the main API on the webserver:
+
+```bash
+while true
+do
+    curl -s http://10.100.224.10 > /dev/null
+    echo "request sent"
+done
+```
+
+And monitor the resource usage with:
+
+```bash
+kubectl describe horizontalpodautoscalers.autoscaling webserver-autoscaler
+watch -n 3 kubectl top pod webserver-deployment-cb9585bf5-hgfj2
+```
+
+When the average CPU utilization gets above 10%, autoscaler spawns a new replica in the deployment set.

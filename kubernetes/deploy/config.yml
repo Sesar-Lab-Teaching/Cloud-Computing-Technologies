@@ -1,7 +1,11 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: mysql-config
+  name: mysql-seed-script
+  labels:
+    app.kubernetes.io/name: mysql-seed-script
+    app.kubernetes.io/component: seed-script
+    app.kubernetes.io/part-of: database
 data:
   seeding_script: |
     CREATE TABLE IF NOT EXISTS accounts (
@@ -23,7 +27,11 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: mysql-public-env
+  name: mysql-configs
+  labels:
+    app.kubernetes.io/name: mysql-configs
+    app.kubernetes.io/component: configs
+    app.kubernetes.io/part-of: database
 data:
   MYSQL_USER: cct1
   MYSQL_DATABASE: cct1
@@ -32,7 +40,11 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: mysql-secret
+  name: mysql-credentials
+  labels:
+    app.kubernetes.io/name: mysql-credentials
+    app.kubernetes.io/component: credentials
+    app.kubernetes.io/part-of: database
 data:
   MYSQL_PASSWORD: bXlzcWxwYXNzd29yZA==
   MYSQL_ROOT_PASSWORD: bXlzcWxyb290cGFzc3dvcmQ=

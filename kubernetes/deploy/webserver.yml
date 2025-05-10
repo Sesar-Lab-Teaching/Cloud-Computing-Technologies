@@ -2,9 +2,13 @@ apiVersion: v1
 kind: Service
 metadata:
   name: webserver-service
+  labels:
+    app.kubernetes.io/name: webserver-service
+    app.kubernetes.io/component: service
+    app.kubernetes.io/part-of: webserver
 spec:
   selector:
-    app: webserver
+    app.kubernetes.io/name: webserver-pod
   ports:
     - port: 80
       name: webserver-service-port
@@ -16,21 +20,25 @@ kind: Deployment
 metadata:
   name: webserver-deployment
   labels:
-    app: webserver
+    app.kubernetes.io/name: webserver-deployment
+    app.kubernetes.io/component: instance-set
+    app.kubernetes.io/part-of: webserver
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: webserver
+      app.kubernetes.io/name: webserver-pod
   template:
     metadata:
       labels:
-        app: webserver
+        app.kubernetes.io/name: webserver-pod
+        app.kubernetes.io/component: instance
+        app.kubernetes.io/part-of: webserver
     spec:
       volumes:
-        - name: mysql-secret-volume
+        - name: mysql-credentials-volume
           secret:
-            secretName: mysql-secret
+            secretName: mysql-credentials
             items:
               - key: MYSQL_PASSWORD
                 path: ./mysql_password
@@ -38,21 +46,51 @@ spec:
         - name: webserver
           image: maluz/webserver-cct-demo:1.0
           ports:
-            - containerPort: 5000
+            - containerPort: 80
               name: webserver-port
           volumeMounts:
-            - name: mysql-secret-volume
+            - name: mysql-credentials-volume
               readOnly: true
               mountPath: "/etc/secrets"
           envFrom:
             - configMapRef:
-                name: mysql-public-env
+                name: mysql-configs
           env:
             - name: MYSQL_PASSWORD_FILE
               value: /etc/secrets/mysql_password
             - name: MYSQL_HOST
-              value: mysql-service.default.svc.cluster.local
+              value: mysql-statefulset-0.mysql-service.default.svc.cluster.local
           resources:
             limits:
               memory: "500Mi"
               cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: webserver-port
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: webserver-autoscaler
+  labels:
+    app.kubernetes.io/name: webserver-autoscaler
+    app.kubernetes.io/component: autoscaler
+    app.kubernetes.io/part-of: webserver
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: webserver-deployment
+  minReplicas: 2
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 10

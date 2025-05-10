@@ -3,7 +3,9 @@ kind: Service
 metadata:
   name: mysql-service
   labels:
-    app: mysql
+    app.kubernetes.io/name: mysql-service
+    app.kubernetes.io/component: service
+    app.kubernetes.io/part-of: database
 spec:
   ports:
     - port: 3306
@@ -12,30 +14,34 @@ spec:
   clusterIP: None
   type: ClusterIP
   selector:
-    app: mysql
+    app.kubernetes.io/name: mysql-pod
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: mysql-statefulset
   labels:
-    app: mysql
+    app.kubernetes.io/name: mysql-statefulset
+    app.kubernetes.io/component: instance-set
+    app.kubernetes.io/part-of: database
 spec:
   serviceName: mysql-service
   replicas: 1
   minReadySeconds: 10
   selector:
     matchLabels:
-      app: mysql
+      app.kubernetes.io/name: mysql-pod
   template:
     metadata:
       labels:
-        app: mysql
+        app.kubernetes.io/name: mysql-pod
+        app.kubernetes.io/component: instance
+        app.kubernetes.io/part-of: database
     spec:
       volumes:
-        - name: mysql-secret-volume
+        - name: mysql-credentials-volume
           secret:
-            secretName: mysql-secret
+            secretName: mysql-credentials
             items:
               - key: MYSQL_PASSWORD
                 path: ./mysql_password
@@ -43,19 +49,19 @@ spec:
                 path: ./mysql_root_password
       containers:
         - name: mysql
-          image: mysql:8
+          image: mysql:8.4.0
           ports:
             - containerPort: 3306
               name: mysql-port
           volumeMounts:
             - name: mysql-data-volume
               mountPath: /var/lib/mysql
-            - name: mysql-secret-volume
+            - name: mysql-credentials-volume
               readOnly: true
               mountPath: "/etc/secrets"
           envFrom:
             - configMapRef:
-                name: mysql-public-env
+                name: mysql-configs
           env:
             - name: MYSQL_PASSWORD_FILE
               value: /etc/secrets/mysql_password
@@ -96,34 +102,34 @@ spec:
       volumes:
         - name: mysql-config-volume
           configMap:
-            name: mysql-config
+            name: mysql-seed-script
             items:
               - key: seeding_script
                 path: ./seed.sql
-        - name: mysql-secret-volume
+        - name: mysql-credentials-volume
           secret:
-            secretName: mysql-secret
+            secretName: mysql-credentials
             items:
               - key: MYSQL_PASSWORD
                 path: ./mysql_password
       containers:
         - name: mysql-seeder
-          image: mysql:8
+          image: mysql:8.4.0
           volumeMounts:
             - name: mysql-config-volume
               readOnly: true
               mountPath: "/etc/configs"
-            - name: mysql-secret-volume
+            - name: mysql-credentials-volume
               readOnly: true
               mountPath: "/etc/secrets"
           envFrom:
             - configMapRef:
-                name: mysql-public-env
+                name: mysql-configs
           env:
             - name: MYSQL_PASSWORD_FILE
               value: /etc/secrets/mysql_password
             - name: MYSQL_HOST
-              value: mysql-service.default.svc.cluster.local
+              value: mysql-statefulset-0.mysql-service.default.svc.cluster.local
           command:
             - bash
             - -c
@@ -137,4 +143,4 @@ spec:
                 -D $MYSQL_DATABASE \
                 -e 'source /etc/configs/seed.sql' || \
               exit 1
-  backoffLimit: 6
+  backoffLimit: 10
