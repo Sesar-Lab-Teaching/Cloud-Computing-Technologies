@@ -237,14 +237,14 @@ While the `mysql-server` is a `ClusterIP` and its virtual IP addresses is expose
 minikube -p kube-demo tunnel
 ```
 
-The `Status.route` field shows the mapped IP address. If you execute again `kubectl get service`, the External IP is now available. To test the webserver, use the mapped port 
+The `Status.route` field shows the mapped IP address. If you execute again `kubectl get service`, the External IP is now available. To test the webserver, use the service port 
 
 ```
 webserver-service   LoadBalancer   10.104.20.24   10.104.20.24   80:31137/TCP
-                                                                    ^^^^^
+                                                                 ^^   
 ```
 
-Finally to delete all the created resource:
+Finally to delete all the created resources:
 
 ```bash
 kubectl delete -f deploy

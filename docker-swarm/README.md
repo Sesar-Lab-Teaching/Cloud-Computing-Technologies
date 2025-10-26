@@ -329,7 +329,7 @@ docker stack rm cct-demo
 
 ### Testing the webserver
 
-The services should be up and running, test it by invoking the webserver endpoint `http://192.168.56.(211|221|222):5000`. The *Hostname* field in the HTML page should change on every page reload: this is the effect of the Swarm Load balancer that applies a round robin policy on the nodes hosting the webserver tasks.
+The services should be up and running, test it by invoking the webserver endpoint `http://192.168.56.(201|211|212):5000`. The *Hostname* field in the HTML page should change on every page reload: this is the effect of the Swarm Load balancer that applies a round robin policy on the nodes hosting the webserver tasks.
 
 Calling the `/make-unhealthy` API makes a task fail and, after the being marked as unhealthy, it is replaced by a new task, i.e. a new container is spawned. The unhealthy container is only shut down, instead of being completely removed. In this way, you can troubleshoot the cause of failure.
 
