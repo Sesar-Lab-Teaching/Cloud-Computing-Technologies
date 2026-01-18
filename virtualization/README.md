@@ -73,3 +73,27 @@ virt-install --name web-server \
     --disk=size=25,backing_store="$IMAGE_PATH" \
     --cloud-init user-data="$(pwd)/cloud-init/webserver/user-data,meta-data=$(pwd)/cloud-init/webserver/meta-data"
 ```
+
+Now log into the web-server VM and get the IP with `ip a`. Open a browser and send an HTTP request to `{web-server-ip}:5000`. It should show an HTML page with a table representing the accounts table from the SQL db.
+
+---
+
+## Cleanup
+
+VMs can be shut down using
+
+```bash
+virsh shutdown db
+```
+
+Or ungracefully shutdown with
+
+```bash
+virsh destroy db
+```
+
+To delete it completely (only if inactive)
+
+```bash
+virsh undefine db
+```

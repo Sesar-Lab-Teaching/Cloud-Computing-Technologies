@@ -11,12 +11,10 @@ package_reboot_if_required: true
 package_update: true
 package_upgrade: true
 packages:
-  - default-libmysqlclient-dev
-  - python3.11-dev
   - python3-pip
-  - build-essential
+  - python3.12-venv
   - pkg-config
-  - jq
+  - default-libmysqlclient-dev
 
 write_files:
 - content: |
@@ -24,8 +22,15 @@ write_files:
     mkdir -p webserver
     cd webserver
 
-    wget https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/refs/heads/main/webserver/requirements.txt
-    pip install -r requirements.txt
+    python3 -m venv .venv
+    source .venv/bin/activate
+
+    python -m pip install pip-tools
+
+    wget https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/refs/heads/main/webserver/requirements.in
+
+    pip-compile requirements.in
+    pip-sync
 
     wget https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/refs/heads/main/webserver/main.py
 
