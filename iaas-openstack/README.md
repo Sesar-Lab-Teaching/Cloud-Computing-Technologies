@@ -95,6 +95,26 @@ The same can be done from the Horizon dashboard (*Compute* -> *Images* -> *Creat
 
 ---
 
+## SSH Key pair
+
+To access the Nova servers using SSH, we need a keypair. The public key is automatically managed by Openstack, but we need to safely store the private key:
+
+```bash
+mkdir -p ~/custom/ssh-keys
+openstack keypair create demo_key > ~/custom/ssh-keys/demo-key.pem
+chmod 600 ~/custom/ssh-keys/demo-key.pem
+```
+
+Retrieve the generated public key with
+
+```bash
+openstack keypair show --public-key demo_key
+```
+
+And fill the property `keypair_public_key` in `stacks/envs/demo_env.yaml` with the retrieved public key.
+
+---
+
 ## Deploying the scenario with Heat
 
 Resource creation can be automated using CLI or HTTP APIs. However, their deployment is not efficient and difficult to manage. Instead, we can use Heat templates to easily manage and provision the environment. Heat is a service that allows the full automation of the entire stack (group of resources) using a Yaml document. In this description file, each resource has a type and a list of properties, along with many other custom features that make template writing production-oriented (parameters, outputs, environments, custom resources, intrinsic functions, etc).
@@ -180,18 +200,6 @@ openstack security group create demo_mysql_secgroup
 openstack security group rule create --dst-port 3306 --protocol tcp demo_mysql_secgroup
 openstack security group create demo_webserver_secgroup
 openstack security group rule create --dst-port 5000 --protocol tcp demo_webserver_secgroup
-```
-
----
-
-## SSH Key pair
-
-A server can now accept SSH connections, but needs to be provisioned with the allowed public keys, which are usually stored in `~/.ssh/authorized_keys`. Nova manages the public keys, but we need to safely store the private keys:
-
-```bash
-mkdir -p ~/custom/ssh-keys
-openstack keypair create demo_key > ~/custom/ssh-keys/demo-key.pem
-chmod 600 ~/custom/ssh-keys/demo-key.pem
 ```
 
 ---

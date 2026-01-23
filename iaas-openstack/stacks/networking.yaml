@@ -115,3 +115,7 @@ outputs:
   webserver_port:
     description: Network port for the Webserver instance
     value: { get_resource: demo_webserver_port }
+
+  network_id:
+    description: Network ID for the demo network
+    value: { get_resource: demo_network }

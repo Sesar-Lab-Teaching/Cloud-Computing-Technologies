@@ -3,6 +3,7 @@ parameters:
   webserver_floating_ip: "172.24.4.100"
   db_flavor: "d3"
   webserver_flavor: "d3"
+  keypair_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFRVtT/Xo774eiTaWocmosLtqtOwhJSe9L9FQvE/PQI4"
 
 resource_registry:
   OS::DemoCCT::Computing: ../computing.yaml

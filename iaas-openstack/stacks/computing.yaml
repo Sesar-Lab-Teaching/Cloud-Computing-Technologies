@@ -4,6 +4,10 @@ description:
   Computing stack for OpenStack IaaS deployment for CCT
 
 parameters:
+  network_id:
+    type: string
+    description: Network ID where instances will be connected
+
   db_port:
     type: string
     description: Network port for the db instance
@@ -22,12 +26,17 @@ parameters:
     description: Flavor for the webserver instance
     default: "d3"
 
+  keypair_public_key:
+    type: string
+    description: Public key associated to the pre-existing keypair
+
 
 resources:
   demo_keypair:
     type: OS::Nova::KeyPair
     properties:
       name: demo_keypair
+      public_key: { get_param: keypair_public_key }
       save_private_key: true
       type: ssh
 
@@ -53,8 +62,8 @@ resources:
       key_name: { get_resource: demo_keypair }
       networks:
         - port: { get_param: webserver_port }
-      meta_data:
-        db_ip: { get_attr: [demo_db_instance, networks, { get_attr: [{ get_param: db_port }, network] }, 0] }
+      metadata:
+        db_ip: { get_attr: [demo_db_instance, networks, { get_param: network_id }, 0, port, fixed_ips, 0, ip_address] }
       user_data_format: RAW
       user_data:
         get_file: files/cloud-init-webserver.yaml
@@ -63,10 +72,4 @@ resources:
         # str_replace:
         #   template: { get_file: files/cloud-init-webserver.yaml }
         #   params:
-        #     $DB_IP_ADDRESS: { get_attr: [demo_db_instance, networks, { get_attr: [{ get_param: db_port }, network] }, 0] }
-
-
-outputs:
-  keypair_private_key:
-    description: Private key of the KeyPair created to access the DB and Webserver instances
-    value: { get_attr: [ demo_keypair, private_key ] }
+        #     $DB_IP_ADDRESS: { get_attr: [demo_db_instance, networks, { get_param: network_id }, 0, port, fixed_ips, 0, ip_address] }
