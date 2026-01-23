@@ -104,7 +104,7 @@ resources:
     type: OS::Neutron::FloatingIPAssociation
     properties:
       floatingip_id: { get_resource: demo_floating_ip }
-      port_id: { get_param: demo_webserver_port }
+      port_id: { get_resource: demo_webserver_port }
 
 
 outputs:
