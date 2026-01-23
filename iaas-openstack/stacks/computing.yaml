@@ -35,11 +35,11 @@ resources:
     type: OS::Nova::Server
     properties:
       name: demo_db_instance
-      flavor: { get_param: demo_db_flavor }
+      flavor: { get_param: db_flavor }
       image: "Ubuntu-24.04"
       key_name: { get_resource: demo_keypair }
       networks:
-        - port: { get_param: demo_db_port }
+        - port: { get_param: db_port }
       user_data_format: RAW
       user_data:
         get_file: files/cloud-init-db.yaml
@@ -48,13 +48,13 @@ resources:
     type: OS::Nova::Server
     properties:
       name: demo_webserver_instance
-      flavor: { get_param: demo_webserver_flavor }
+      flavor: { get_param: webserver_flavor }
       image: "Ubuntu-24.04"
       key_name: { get_resource: demo_keypair }
       networks:
-        - port: { get_param: demo_webserver_port }
+        - port: { get_param: webserver_port }
       meta_data:
-        db_ip: { get_attr: [demo_db_instance, networks, { get_attr: [demo_db_port, network] }, 0] }
+        db_ip: { get_attr: [demo_db_instance, networks, { get_attr: [{ get_param: db_port }, network] }, 0] }
       user_data_format: RAW
       user_data:
         get_file: files/cloud-init-webserver.yaml
@@ -63,18 +63,10 @@ resources:
         # str_replace:
         #   template: { get_file: files/cloud-init-webserver.yaml }
         #   params:
-        #     $DB_IP_ADDRESS: { get_attr: [demo_db_instance, networks, { get_attr: [demo_db_port, network] }, 0] }
+        #     $DB_IP_ADDRESS: { get_attr: [demo_db_instance, networks, { get_attr: [{ get_param: db_port }, network] }, 0] }
 
 
 outputs:
   keypair_private_key:
     description: Private key of the KeyPair created to access the DB and Webserver instances
     value: { get_attr: [ demo_keypair, private_key ] }
-
-  webserver_instance_ip:
-    description: IP address of the Webserver instance
-    value: { get_attr: [ demo_webserver_instance, networks, { get_attr: [demo_webserver_port, network] }, 0 ] }
-
-  db_instance_ip:
-    description: IP address of the DB instance
-    value: { get_attr: [ demo_db_instance, networks, { get_attr: [demo_db_port, network] }, 0 ] }

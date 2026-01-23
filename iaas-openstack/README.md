@@ -99,20 +99,24 @@ The same can be done from the Horizon dashboard (*Compute* -> *Images* -> *Creat
 
 Resource creation can be automated using CLI or HTTP APIs. However, their deployment is not efficient and difficult to manage. Instead, we can use Heat templates to easily manage and provision the environment. Heat is a service that allows the full automation of the entire stack (group of resources) using a Yaml document. In this description file, each resource has a type and a list of properties, along with many other custom features that make template writing production-oriented (parameters, outputs, environments, custom resources, intrinsic functions, etc).
 
-Stacks for the reference scenario are located in `stacks/` folder.
-They can be validated with:
+Stacks for the reference scenario are located in `stacks/` folder. First, clone the repo inside the VM:
 
 ```bash
-for tpl in ./stacks/*.yaml
-do
-    openstack orchestration template validate -t "$tpl"
-done
+git clone https://github.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies.git --depth=1 --sparse cct-repo
+git sparse-checkout set iaas-openstack/
+cd iaas-openstack
+```
+
+Heat templates can be validated with:
+
+```bash
+openstack orchestration template validate -e stacks/envs/demo_env.yaml -t ./stacks/demo.yaml
 ```
 
 But we will only create the root stack (remove `--dry-run` to deploy):
 
 ```bash
-openstack stack create -t ./stacks/demo.yaml -e ./stacks/envs/demo.yaml --wait --dry-run demo_cct
+openstack stack create -t ./stacks/demo.yaml -e ./stacks/envs/demo_env.yaml --wait --dry-run demo_cct
 ```
 
 To monitor the state of the stack deployment and see the outputs when it is ready:

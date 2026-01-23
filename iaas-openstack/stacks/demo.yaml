@@ -3,6 +3,24 @@ heat_template_version: 2021-04-16
 description:
   Root stack for OpenStack IaaS deployment for CCT
 
+parameters:
+  webserver_port:
+    type: number
+    description: Network port for the webserver instance
+
+  webserver_floating_ip:
+    type: string
+    description: Floating IP for the webserver instance
+
+  db_flavor:
+    type: string
+    description: Flavor for the db instance
+
+  webserver_flavor:
+    type: string
+    description: Flavor for the webserver instance
+
+
 resources:
   demo_networking:
     type: OS::DemoCCT::Networking
@@ -22,11 +40,11 @@ resources:
 outputs:
   webserver_instance_ip:
     description: Private IP of the webserver instance
-    value: { get_attr: [demo_computing, webserver_instance_ip] }
+    value: { get_attr: [demo_networking, webserver_port, fixed_ips, 0, ip_address] }
 
   db_instance_ip:
     description: Private IP of the db instance
-    value: { get_attr: [demo_computing, db_instance_ip] }
+    value: { get_attr: [demo_networking, db_port, fixed_ips, 0, ip_address] }
 
   keypair_private_key:
     description: Private key of the demo keypair
