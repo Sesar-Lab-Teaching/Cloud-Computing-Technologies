@@ -144,29 +144,53 @@ To monitor the state of the stack deployment and see the outputs when it is read
 ```bash
 # to see the entire history of events (CREATE_IN_PROGRESS, FAILED, COMPLETE, etc) 
 # related to the resources created by the stack
-openstack stack event list demo_networking
+openstack stack event list demo_cct
 # to retrieve the current stack status 
-openstack stack show -f value -c stack_status demo_networking
+openstack stack show -f value -c stack_status demo_cct
 ```
 
-To delete the stacks:
+To delete the stack:
 
 ```bash
-openstack stack delete demo_networking
+openstack stack delete demo_cct
 ```
-
-
-
-
-
-
-
-
-
 
 ---
 
-# Deploying the scenario with CLI commands
+## Access the Webserver
+
+Now the webserver is available and a shell can be opened through horizon, APIs, or SSH:
+
+```bash
+# assuming 172.24.4.100 is the chosen Floating IP address
+ssh -i ~/custom/ssh-keys/demo-key.pem ubuntu@172.24.4.100
+```
+
+From the Devstack host, the index page of the webserver can be retrieved by issuing an HTTP request to `172.24.4.100:5000`:
+
+```bash
+curl http://172.24.4.100:5000
+```
+
+We should see the user accounts, which serves as a proof that the webserver correctly queried the db instance. 
+
+### (Devstack only)
+
+If the public network is virtual and not directly attached to the host physical interface, a Nova server IP address cannot be reached from the outside. However, we can create some Firewall rules that forward traffic coming from a certain port on the host to the web server VM in Devstack.
+
+```bash
+# replace $HOST_IP with the IP address you use to access the host VM
+sudo iptables -t nat -A PREROUTING -p tcp -d "$HOST_IP" --dport 5000 -j DNAT --to-destination 172.24.4.100:5000
+sudo iptables -t nat -A POSTROUTING -p tcp -d 172.24.4.100 --dport 5000 -j MASQUERADE
+```
+
+---
+
+# Deploying the scenario with CLI commands (Deprecated)
+
+⚠️⚠️⚠️ The remaining of this page will not be maintained. Some files/configurations might be different from the one specified with Heat.
+
+The following sections describe how to use Openstack APIs to deploy the scenario, along with some theoretical aspects.
 
 ## Security Groups
 

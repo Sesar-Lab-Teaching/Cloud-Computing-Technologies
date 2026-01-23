@@ -41,13 +41,3 @@ resources:
       webserver_port: { get_attr: [demo_networking, webserver_port] }
       webserver_flavor: { get_param: webserver_flavor }
       keypair_public_key: { get_param: keypair_public_key }
-
-
-outputs:
-  webserver_instance_ip:
-    description: Private IP of the webserver instance
-    value: { get_attr: [demo_networking, webserver_port, fixed_ips, 0, ip_address] }
-
-  db_instance_ip:
-    description: Private IP of the db instance
-    value: { get_attr: [demo_networking, db_port, fixed_ips, 0, ip_address] }

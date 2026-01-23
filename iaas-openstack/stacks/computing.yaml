@@ -15,7 +15,7 @@ parameters:
   db_flavor:
     type: string
     description: Flavor for the db instance
-    default: "d3"
+    default: "ds2G"
 
   webserver_port:
     type: string
@@ -24,7 +24,7 @@ parameters:
   webserver_flavor:
     type: string
     description: Flavor for the webserver instance
-    default: "d3"
+    default: "ds2G"
 
   keypair_public_key:
     type: string
@@ -63,7 +63,7 @@ resources:
       networks:
         - port: { get_param: webserver_port }
       metadata:
-        db_ip: { get_attr: [demo_db_instance, networks, { get_param: network_id }, 0, port, fixed_ips, 0, ip_address] }
+        db_ip: { get_attr: [demo_db_instance, networks, { get_param: network_id }, 0] }
       user_data_format: RAW
       user_data:
         get_file: files/cloud-init-webserver.yaml
@@ -72,4 +72,4 @@ resources:
         # str_replace:
         #   template: { get_file: files/cloud-init-webserver.yaml }
         #   params:
-        #     $DB_IP_ADDRESS: { get_attr: [demo_db_instance, networks, { get_param: network_id }, 0, port, fixed_ips, 0, ip_address] }
+        #     $DB_IP_ADDRESS: { get_attr: [demo_db_instance, networks, { get_param: network_id }, 0] }
