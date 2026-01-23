@@ -1,0 +1,9 @@
+parameters:
+  webserver_port: 5000
+  webserver_floating_ip: "172.24.4.100"
+  db_flavor: "d3"
+  webserver_flavor: "d3"
+
+resource_registry:
+  OS::DemoCCT::Computing: ../computing.yaml
+  OS::DemoCCT::Networking: ../networking.yaml

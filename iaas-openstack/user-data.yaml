@@ -1,0 +1,72 @@
+#cloud-config
+# See the autoinstall documentation at:
+# https://canonical-subiquity.readthedocs-hosted.com/en/latest/reference/autoinstall-reference.html
+autoinstall:
+  version: 1
+  codecs:
+    install: false
+  drivers:
+    install: false
+  identity:
+    hostname: 'openstack-cct26'
+    # password: openstack
+    password: '$6$2wrEDJsEhRAPRkUe$CcuoGmcNY2HY8TRB/tEAXBT4dg5a77n77666k409Xeiz34LSiZ.2KEP7kbTTcmDRogsumsLdThE.culnPE8tZ0'
+    username: 'openstack'
+  keyboard:
+    layout: it
+    variant: ''
+  locale: en_US.UTF-8
+  network:
+    version: 2
+    ethernets:
+      nic1:
+        match:
+          name: en*
+        dhcp4: true
+  user-data:
+    package_update: true
+    package_upgrade: true
+    packages:
+      - qemu-guest-agent
+    users:
+      - default
+      - name: stack
+        lock_passwd: False
+        sudo: ["ALL=(ALL) NOPASSWD:ALL\nDefaults:stack !requiretty"]
+        shell: /bin/bash
+
+    write_files:
+    # update the devstack branch to the most recent stable
+      - content: |
+            #!/bin/sh
+            DEBIAN_FRONTEND=noninteractive sudo apt -y update
+            DEBIAN_FRONTEND=noninteractive sudo apt install -y git
+            sudo chown stack:stack /home/stack
+            cd /home/stack
+            git clone https://opendev.org/openstack/devstack --depth=1 --branch stable/2025.2
+            cd devstack
+            echo '[[local|localrc]]' > local.conf
+            echo "enable_plugin heat https://opendev.org/openstack/heat stable/2025.2" >> local.conf
+            echo "ADMIN_PASSWORD=cct" >> local.conf
+            echo "DATABASE_PASSWORD=\$ADMIN_PASSWORD" >> local.conf
+            echo "RABBIT_PASSWORD=\$ADMIN_PASSWORD" >> local.conf
+            echo "SERVICE_PASSWORD=\$ADMIN_PASSWORD" >> local.conf
+            echo "HOST_IP=172.20.28.115" >> local.conf
+            ./stack.sh |& tee ../stack.logs
+        path: /home/stack/start.sh
+        permissions: '0755'
+
+    runcmd:
+      - systemctl enable qemu-guest-agent
+      - systemctl start qemu-guest-agent
+      - su -l stack ./start.sh
+  ssh:
+    allow-pw: true
+    authorized-keys:
+    # customize with authorized keys
+      - ...
+    install-server: true
+  storage:
+    layout:
+      name: lvm
+      sizing-policy: all

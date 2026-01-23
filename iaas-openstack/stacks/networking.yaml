@@ -1,0 +1,117 @@
+heat_template_version: 2021-04-16
+
+description:
+  networking stack for OpenStack IaaS deployment for CCT
+
+parameters:
+  webserver_port:
+    type: number
+    description: Network port for the webserver instance
+    default: 5000
+
+  webserver_floating_ip:
+    type: string
+    description: Floating IP for the webserver instance
+
+
+resources:
+  demo_network:
+    type: OS::Neutron::Net
+    properties:
+      name: demo_network
+
+  demo_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      name: demo_subnet
+      network_id: { get_resource: demo_network }
+      cidr: "192.168.1.0/24"
+      dns_nameservers:
+        - "8.8.8.8"
+        - "8.8.4.4"
+
+  demo_router:
+    type: OS::Neutron::Router
+    properties:
+      name: demo_router
+      external_gateway_info:
+        network: public
+
+  demo_router_subnet_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: demo_router }
+      subnet: { get_resource: demo_subnet }
+
+  demo_base_sec_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name: demo_base_sec_group
+      description: Allow SSH and ICMP traffic
+      rules:
+        - protocol: tcp
+          direction: ingress
+          remote_ip_prefix: "0.0.0.0/0"
+          port_range_min: 22
+          port_range_max: 22
+        - protocol: icmp
+          remote_ip_prefix: "0.0.0.0/0"
+
+  demo_web_server_sec_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name: demo_web_server_sec_group
+      description: Allow 5000 port for the Webserver
+      rules:
+        - protocol: tcp
+          direction: ingress
+          remote_ip_prefix: "0.0.0.0/0"
+          port_range_min: { get_param: webserver_port }
+          port_range_max: { get_param: webserver_port }
+
+  demo_db_port:
+    type: OS::Neutron::Port
+    properties:
+      name: demo_db_port
+      network_id: { get_resource: demo_network }
+      security_groups:
+        - default
+        - { get_resource: demo_base_sec_group }
+      fixed_ips: 
+        - subnet: { get_resource: demo_subnet }
+          # ip_address: "192.168.1.3"
+
+  demo_webserver_port:
+    type: OS::Neutron::Port
+    properties:
+      name: demo_webserver_port
+      network_id: { get_resource: demo_network }
+      security_groups:
+        - default
+        - { get_resource: demo_base_sec_group }
+        - { get_resource: demo_web_server_sec_group }
+      fixed_ips: 
+        - subnet: { get_resource: demo_subnet }
+          # ip_address: "192.168.1.4"
+
+  demo_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_ip_address: { get_param: webserver_floating_ip }
+      floating_network: public
+
+  demo_floating_ip_association_webserver:
+    type: OS::Neutron::FloatingIPAssociation
+    properties:
+      floatingip_id: { get_resource: demo_floating_ip }
+      port_id: { get_param: demo_webserver_port }
+
+
+outputs:
+  db_port:
+    description: Network port for the DB instance
+    value: { get_resource: demo_db_port }
+
+  webserver_port:
+    description: Network port for the Webserver instance
+    value: { get_resource: demo_webserver_port }

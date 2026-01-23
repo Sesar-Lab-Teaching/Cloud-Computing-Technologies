@@ -6,60 +6,30 @@
 
 - https://ubuntu.com/openstack/install#single-multi-large-cluster
 - https://discourse.ubuntu.com/t/single-node-guided/35765
-- https://docs.openstack.org/devstack/latest/guides/single-vm.html
-- https://ubuntu.com/tutorials/install-openstack-on-your-workstation-and-launch-your-first-instance#2-install-openstack
-- See doc for devstack in the latest stable release: https://opendev.org/openstack/devstack/src/branch/stable/2024.2/doc/source
-- For multiple VM: https://docs.openstack.org/devstack/latest/guides/neutron.html
+- Install on single VM: https://docs.openstack.org/devstack/latest/guides/single-vm.html
+- See doc for devstack in the latest stable release: https://opendev.org/openstack/devstack/src/branch/stable/2025.2/doc/source
+- For Networking: https://docs.openstack.org/devstack/latest/guides/neutron.html
 
 ---
 
-## ⚠️⚠️⚠️Important ⚠️⚠️⚠️
-
-Before deploying Openstack/Devstack, read the [requirements](https://ubuntu.com/openstack/install)
-
----
-
-The Openstack deployment we show is Devstack, probably the simplest way to approach Openstack for the first time. Nonetheless, it includes all the Openstack features and support several different environments (dedicated hardware, VM, multi-node).
+The Openstack deployment we show is Devstack, probably the simplest way to approach Openstack for the first time. Nonetheless, it includes the most important Openstack features and support several different environments (dedicated hardware, VM, multi-node). The installation can be extended through plugins as explained [here](https://docs.openstack.org/devstack/2025.2/plugins.html).
 
 ## Install Devstack
 
-The procedure we describe is described [here](https://docs.openstack.org/devstack/latest/index.html). For the available deployment models, check out [this page](https://docs.openstack.org/devstack/latest/guides.html). First create the `stack` user and login:
+The `autoinstall` script to initialize a server image with devstack is available in this folder (`user-data.yaml`)
 
-```bash
-sudo useradd -s /bin/bash -d /opt/stack -m stack
-sudo chmod +x /opt/stack
+**Important**:
 
-echo "stack ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/stack
-```
+- clone the Devstack repo by specifying a stable release. See the available branches [here](https://opendev.org/openstack/devstack/branches).
 
-Everytime you need to work with Devstack, login with user `stack`, you can optionally add it to the default user `.bashrc`:
+    ```bash
+    git clone https://opendev.org/openstack/devstack --depth=1 --branch stable/2025.2
+    ```
+- the installation of devstack might break your connectivity and apply some significant changes to the system. You should probably create a snapshot of your machine before running the installation script (`stack.sh`), and write the logs in a file.
 
-```bash
-echo "sudo -u stack -i" >> .bashrc
-sudo -u stack -i
-```
-
-Then clone the Devstack repo using a stable release.
-
-```bash
-git clone https://opendev.org/openstack/devstack --depth=1 --branch stable/2024.2
-
-cd devstack
-
-cat <<EOF > local.conf
-[[local|localrc]]
-ADMIN_PASSWORD=secret
-DATABASE_PASSWORD=\$ADMIN_PASSWORD
-RABBIT_PASSWORD=\$ADMIN_PASSWORD
-SERVICE_PASSWORD=\$ADMIN_PASSWORD
-EOF
-```
-
-**Note: the installation of devstack might break your connectivity and apply some significant changes to the system. You should probably create a snapshot of your machine before running the installation script (`stack.sh`)**
-
-```bash
-./stack.sh |& tee ../stack.logs
-```
+    ```bash
+    ./stack.sh |& tee ../stack.logs
+    ```
 
 ### Uninstall Devstack
 
@@ -69,73 +39,112 @@ Run `devstack/unstack.sh` (or `devstack/clean.sh` for a full uninstall).
 
 ## Usage
 
-From now on, always login with the "stack" user (`sudo -u stack -i`) to run Openstack commands. you can access Horizon (the Web UI Dashboard of Openstack) from `http://${HOST_IP}/dashboard`.
+From now on, always login with the *stack* user (`sudo -u stack -i`) to run Openstack commands. you can access Horizon (the Web UI Dashboard of Openstack) from `http://${HOST_IP}/dashboard`.
 
 **username**: admin        # "demo", or any other user created
 
-**password**: secret
+**password**: the password you have specified in `local.conf`
 
 To access Openstack from the console, you first need to configure it with the right env variables:
 
-```
+```bash
 # source devstack/openrc {username} {project_name}
 source devstack/openrc admin demo
 ```
 
 Every Openstack command has the form:
 
-```
+```bash
 openstack {service_id} {operation} [-c column_to_show] [-f formatting_option]
 ```
 
-For more information on the available services and operations, use the help command: `openstack help {service_id} [{operation}]`.  The second method to call Openstack APIs is through HTTP APIs:
+For more information on the available services and operations, use the help command: `openstack help {service_id} [{operation}]`. The second method to call Openstack APIs is through HTTP APIs:
 
-```
+```bash
 OS_TOKEN=$(openstack token issue -c id -f value)
 curl -X GET -H "X-Auth-Token: $OS_TOKEN" http://...
 ```
 
 ---
 
-# Images with Glance
+## Images with Glance
 
-Each server needs an image, basically an OS that hosts the server. Glance is the Openstack service that manages these images. We can see the available ones with:
+Each server needs a base image, i.e. the OS running in the server. Glance is the Openstack service that manages these images. We can see the available ones with:
 
 ```
 openstack image list
 ```
 
-Since the only image available by default with devstack is cirrOS, devised for test purposes, we need to import a new image (e.g. debian). There exists several versions of Debian images optimized for Cloud, the two we recommend are:
-- [debian 10 maintained by Openstack](https://cdimage.debian.org/images/cloud/OpenStack/current-10/debian-10-openstack-amd64.qcow2) (though Debian 10 is quite old...)
-- [Debian 12, generic for any cloud provider](https://cloud.debian.org/images/cloud/bookworm/20250316-2053/debian-12-genericcloud-amd64-20250316-2053.qcow2). For compatibility issues with webserver requirements, we will use this image.
+Since the only image available by default with devstack is cirrOS, devised for test purposes, we need to import a new image, such as Ubuntu, in particular the 
+[cloud image](https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img) 
 
 ```bash
-# from the home directory
-mkdir -p ~/custom/images
-cd ~/custom/images
-wget https://cdimage.debian.org/images/cloud/OpenStack/current-10/debian-10-openstack-amd64.qcow2
-wget https://cloud.debian.org/images/cloud/bookworm/20250316-2053/debian-12-genericcloud-amd64-20250316-2053.qcow2
+# from the home directory of stack user
+mkdir -p custom/images
+cd custom/images
+wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
 
-openstack image create \
-    --container-format bare \
-    --public \
-    --disk-format qcow2 \
-    --file debian-10-openstack-amd64.qcow2 \
-    debian-10-openstack-amd64
-
-openstack image create \
-    --container-format bare \
-    --public \
-    --disk-format qcow2 \
-    --file debian-12-genericcloud-amd64-20250316-2053.qcow2 \
-    debian-12-genericcloud-amd64-20250316-2053
+openstack image create "Ubuntu-24.04" \
+   --file noble-server-cloudimg-amd64.img \
+   --disk-format qcow2 \
+   --container-format bare \
+   --public
 ```
 
-The same can be done on the Horizon dashboard: *Compute* -> *Images* -> *Create Image*, or through HTTP APIs.
+The same can be done from the Horizon dashboard (*Compute* -> *Images* -> *Create Image*), or HTTP APIs.
 
 ---
 
-# Security Groups
+## Deploying the scenario with Heat
+
+Resource creation can be automated using CLI or HTTP APIs. However, their deployment is not efficient and difficult to manage. Instead, we can use Heat templates to easily manage and provision the environment. Heat is a service that allows the full automation of the entire stack (group of resources) using a Yaml document. In this description file, each resource has a type and a list of properties, along with many other custom features that make template writing production-oriented (parameters, outputs, environments, custom resources, intrinsic functions, etc).
+
+Stacks for the reference scenario are located in `stacks/` folder.
+They can be validated with:
+
+```bash
+for tpl in ./stacks/*.yaml
+do
+    openstack orchestration template validate -t "$tpl"
+done
+```
+
+But we will only create the root stack (remove `--dry-run` to deploy):
+
+```bash
+openstack stack create -t ./stacks/demo.yaml -e ./stacks/envs/demo.yaml --wait --dry-run demo_cct
+```
+
+To monitor the state of the stack deployment and see the outputs when it is ready:
+
+```bash
+# to see the entire history of events (CREATE_IN_PROGRESS, FAILED, COMPLETE, etc) 
+# related to the resources created by the stack
+openstack stack event list demo_networking
+# to retrieve the current stack status 
+openstack stack show -f value -c stack_status demo_networking
+```
+
+To delete the stacks:
+
+```bash
+openstack stack delete demo_networking
+```
+
+
+
+
+
+
+
+
+
+
+---
+
+# Deploying the scenario with CLI commands
+
+## Security Groups
 
 Before creating a new instance, we need to define the security group. The default security group, which is automatically assigned to any instance if not specified otherwise, applies the following rules:
 
@@ -171,7 +180,7 @@ openstack security group rule create --dst-port 5000 --protocol tcp demo_webserv
 
 ---
 
-# SSH Key pair
+## SSH Key pair
 
 A server can now accept SSH connections, but needs to be provisioned with the allowed public keys, which are usually stored in `~/.ssh/authorized_keys`. Nova manages the public keys, but we need to safely store the private keys:
 
@@ -183,7 +192,7 @@ chmod 600 ~/custom/ssh-keys/demo-key.pem
 
 ---
 
-# Networking with Neutron
+## Networking with Neutron
 
 Our scenario needs 2 networks:
 - `public` - the gateway to the internet
@@ -220,7 +229,7 @@ openstack port create --network demo_private --fixed-ip subnet=demo_subnet,ip-ad
 
 ---
 
-# Cloud-init & Metadata server
+## Cloud-init & Metadata server
 
 Cloud-init is a widely adopted tool that automates the initial setup of cloud instances. On first boot, it processes user data, which is basically a declarative configuration file that initializes the instance by installing packages, setting up SSH keys, and applying any necessary customizations. This automation is especially useful with OpenStack, as it simplifies and accelerates instance provisioning while ensuring consistent configurations across deployments.
 
@@ -238,7 +247,7 @@ The cloud-init package can query the metadata APIs or be configured with a confi
 
 ---
 
-# Computing with Nova
+## Computing with Nova
 
 Now the setup is ready to launch the actual instances. To establish the amount of resources an instance has (Storage size, Ram, CPUs), we can set the **flavor**. First create the **db** instance:
 
@@ -293,7 +302,7 @@ openstack server stop demo_webserver_instance
 
 ---
 
-# Floating IPs
+## Floating IPs
 
 The webserver can access the outside world thanks to SNAT performed by gateway routers. The opposite is not possible unless you create a Floating IPs: they are IPs taken from the `public` subnet pool and assigned to guest instances. When a Floating IP is assigned, Openstack enables DNAT on the router connecting the `public` with the private networks and the Floating IP of the `public` network is converted to the Fixed IP of the private network.
 
@@ -355,7 +364,7 @@ With `openstack image list` you will see a new image with status `saving`. Once 
 
 ---
 
-# Volumes with Cinder
+## Volumes with Cinder
 
 Volumes are extremely useful to persist servers data and backups. There are several ways to create a volume:
 
@@ -390,7 +399,7 @@ openstack server create --block-device-mapping DEVICE={volume_name} ...
 
 To check the mount point in the server, the `attachments` field in `openstack volume show {volume_name}` includes this information.
 
-## Booting  from a volume
+### Booting from a volume
 
 After creating a volume from an image, you can attach this volume (instead of an image) to a `server create` command:
 
@@ -406,7 +415,7 @@ openstack server create --image {image_name} --boot-from-volume {size} ...
 
 ---
 
-## Snapshots & Backups
+### Snapshots & Backups
 
 Snapshot is a useful feature to create reproducible "snapshot" of our volume at a certain point in time. We can then revert the volume to a previous snapshot or create a volume from it. More here:
 
@@ -420,35 +429,3 @@ backups is another service provided by Openstack and allows the duplication of a
 openstack help volume backup
 ```
 
-# Orchestration with Heat
-
-Up to now, we have created a semi-automated deployment of the involved resources (images, servers, volumes, security groups, networks, storage,...). Heat is a service that allows the full automation of the entire stack using a Yaml document. In this description file, each resource has a type and a list of properties, which represent the options passed on to the command line:
-
-```
-heat_template_version: rocky
-resources:
-    dbserver:
-        type: OS::Nova::Server
-        properties:
-            image: dbimage
-            flavor: d2
-            ...
-```
-
-Once the stack is ready, it can be validated:
-
-```
-openstack orchestration template validate -t template_path.yaml
-```
-
-Then, we launch it:
-
-```
-openstack stack create -t template_path.yaml stack_name
-```
-
-To monitor the state of the stack deployment, we can read the events:
-
-```
-openstack stack event list stack_name
-```

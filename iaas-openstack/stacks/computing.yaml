@@ -1,0 +1,80 @@
+heat_template_version: 2021-04-16
+
+description:
+  Computing stack for OpenStack IaaS deployment for CCT
+
+parameters:
+  db_port:
+    type: string
+    description: Network port for the db instance
+
+  db_flavor:
+    type: string
+    description: Flavor for the db instance
+    default: "d3"
+
+  webserver_port:
+    type: string
+    description: Network port for the webserver instance
+
+  webserver_flavor:
+    type: string
+    description: Flavor for the webserver instance
+    default: "d3"
+
+
+resources:
+  demo_keypair:
+    type: OS::Nova::KeyPair
+    properties:
+      name: demo_keypair
+      save_private_key: true
+      type: ssh
+
+  demo_db_instance:
+    type: OS::Nova::Server
+    properties:
+      name: demo_db_instance
+      flavor: { get_param: demo_db_flavor }
+      image: "Ubuntu-24.04"
+      key_name: { get_resource: demo_keypair }
+      networks:
+        - port: { get_param: demo_db_port }
+      user_data_format: RAW
+      user_data:
+        get_file: files/cloud-init-db.yaml
+
+  demo_webserver_instance:
+    type: OS::Nova::Server
+    properties:
+      name: demo_webserver_instance
+      flavor: { get_param: demo_webserver_flavor }
+      image: "Ubuntu-24.04"
+      key_name: { get_resource: demo_keypair }
+      networks:
+        - port: { get_param: demo_webserver_port }
+      meta_data:
+        db_ip: { get_attr: [demo_db_instance, networks, { get_attr: [demo_db_port, network] }, 0] }
+      user_data_format: RAW
+      user_data:
+        get_file: files/cloud-init-webserver.yaml
+
+        # Alternative way to pass DB_IP_ADDRESS by rendering the cloud-init file at deployment time
+        # str_replace:
+        #   template: { get_file: files/cloud-init-webserver.yaml }
+        #   params:
+        #     $DB_IP_ADDRESS: { get_attr: [demo_db_instance, networks, { get_attr: [demo_db_port, network] }, 0] }
+
+
+outputs:
+  keypair_private_key:
+    description: Private key of the KeyPair created to access the DB and Webserver instances
+    value: { get_attr: [ demo_keypair, private_key ] }
+
+  webserver_instance_ip:
+    description: IP address of the Webserver instance
+    value: { get_attr: [ demo_webserver_instance, networks, { get_attr: [demo_webserver_port, network] }, 0 ] }
+
+  db_instance_ip:
+    description: IP address of the DB instance
+    value: { get_attr: [ demo_db_instance, networks, { get_attr: [demo_db_port, network] }, 0 ] }
