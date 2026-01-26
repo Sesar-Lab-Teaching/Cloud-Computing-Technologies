@@ -97,21 +97,21 @@ The same can be done from the Horizon dashboard (*Compute* -> *Images* -> *Creat
 
 ## SSH Key pair
 
-To access the Nova servers using SSH, we need a keypair. The public key is automatically managed by Openstack, but we need to safely store the private key:
+To access the Nova servers using SSH, we need to create a key pair, composed of a public and a private key:
 
 ```bash
 mkdir -p ~/custom/ssh-keys
-openstack keypair create demo_key > ~/custom/ssh-keys/demo-key.pem
+
+# private key generation
+openssl genrsa -out ~/custom/ssh-keys/demo-key.pem 2048
 chmod 600 ~/custom/ssh-keys/demo-key.pem
+
+# public key generation
+openssl rsa -in ~/custom/ssh-keys/demo-key.pem -pubout -out ~/custom/ssh-keys/demo-key.pub
+ssh-keygen -i -m PKCS8 -f ~/custom/ssh-keys/demo-key.pub
 ```
 
-Retrieve the generated public key with
-
-```bash
-openstack keypair show --public-key demo_key
-```
-
-And fill the property `keypair_public_key` in `stacks/envs/demo_env.yaml` with the retrieved public key.
+And fill the property `keypair_public_key` in `stacks/envs/demo_env.yaml` with the retrieved public key in `ssh-rsa AAAAB3Nza...` format.
 
 ---
 
@@ -228,6 +228,24 @@ openstack security group rule create --dst-port 5000 --protocol tcp demo_webserv
 
 ---
 
+## SSH Key pair
+
+To access the Nova servers using SSH, we need a keypair. The public key is automatically managed by Openstack, but we need to safely store the private key:
+
+```bash
+mkdir -p ~/custom/ssh-keys
+openstack keypair create demo_key > ~/custom/ssh-keys/demo-key.pem
+chmod 600 ~/custom/ssh-keys/demo-key.pem
+```
+
+Retrieve the generated public key with
+
+```bash
+openstack keypair show --public-key demo_key
+```
+
+---
+
 ## Networking with Neutron
 
 Our scenario needs 2 networks:
@@ -277,7 +295,11 @@ mkdir -p ~/custom/cloud-init
 
 Now copy the `sqldb/provision-db.yaml` in `~/custom/cloud-init/db.yaml`, and `webserver/provision-webserver.yaml` in `~/custom/cloud-init/webserver.yaml`. These files contain the additional packages to install and the one-time commands to run (see `runcmd` property). They are specified using the `--user-data` option during instance creation.
 
-Another interesting feature typically offered by cloud platforms is the metadata server, a special web service that supplies instance-specific information to virtual machines at runtime. It is usually accessible via a link-local address (e.g. `169.254.169.254`) and it delivers data such as instance identity, network configuration, and user data. User data includes the possibility of writing/reading custom properties. While building the webserver instance, we will specify the database ip as custom property (`--property`) so that it does not have to be hard-coded inside the cloud-init file. This is especially useful to parameterize the creation of a new instance with any number of properties, like db name, user and password for a db creation. 
+Another interesting feature typically offered by cloud platforms is the metadata server, a special web service that supplies instance-specific information to virtual machines at runtime. It is usually accessible via a link-local address (e.g. `169.254.169.254`) and it delivers data such as instance identity, network configuration, and user data.
+
+OpenStack uses DNAT to route packets from instances to the OpenStack metadata service. Applications running inside of instances access the OpenStack metadata service by making HTTP GET requests to a web server with IP address `169.254.169.254`. In an OpenStack deployment, there is no host with this IP address. Instead, OpenStack uses DNAT to change the destination IP of these packets so they reach the network interface that a metadata service is listening on.
+
+User data includes the possibility of writing/reading custom properties. While building the webserver instance, we will specify the database ip as custom property (`--property`) so that it does not have to be hard-coded inside the cloud-init file. This is especially useful to parameterize the creation of a new instance with any number of properties, like db name, user and password for a db creation.
 
 The cloud-init package can query the metadata APIs or be configured with a config drive with the option `--config-drive=true` in the server creation.
 
@@ -340,7 +362,7 @@ openstack server stop demo_webserver_instance
 
 ## Floating IPs
 
-The webserver can access the outside world thanks to SNAT performed by gateway routers. The opposite is not possible unless you create a Floating IPs: they are IPs taken from the `public` subnet pool and assigned to guest instances. When a Floating IP is assigned, Openstack enables DNAT on the router connecting the `public` with the private networks and the Floating IP of the `public` network is converted to the Fixed IP of the private network.
+The webserver can access the outside world thanks to SNAT performed by gateway routers. The opposite is not possible unless you create a Floating IPs: they are IPs taken from the `public` subnet pool and assigned to guest instances. When a Floating IP is assigned, Openstack enables One-to-one NAT, maintaining a one-to-one mapping between private IP addresses and public IP addresses. 
 
 From the console, you should first check whether there is any available Floating IP that is not associated yet:
 

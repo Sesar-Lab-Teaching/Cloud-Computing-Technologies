@@ -47,6 +47,7 @@ autoinstall:
             cd devstack
             echo '[[local|localrc]]' > local.conf
             echo "enable_plugin heat https://opendev.org/openstack/heat stable/2025.2" >> local.conf
+            echo "enable_plugin heat-dashboard https://opendev.org/openstack/heat-dashboard stable/2025.2" >> local.conf
             echo "ADMIN_PASSWORD=cct" >> local.conf
             echo "DATABASE_PASSWORD=\$ADMIN_PASSWORD" >> local.conf
             echo "RABBIT_PASSWORD=\$ADMIN_PASSWORD" >> local.conf
