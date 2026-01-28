@@ -1,0 +1,51 @@
+#cloud-config
+#
+# provisioning script of mysql db for ubuntu-based distro
+hostname: webserver
+ssh_pwauth: true
+password: cct-webserver
+chpasswd:
+  expire: false
+
+package_reboot_if_required: true
+package_update: true
+package_upgrade: true
+packages:
+  - python3-pip
+  - python3.12-venv
+  - pkg-config
+  - default-libmysqlclient-dev
+
+write_files:
+- content: |
+    #!/bin/bash
+    mkdir -p webserver
+    cd webserver
+
+    python3 -m venv .venv
+    source .venv/bin/activate
+
+    python -m pip install pip-tools
+
+    wget https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/refs/heads/main/webserver/requirements.in
+
+    pip-compile requirements.in
+    pip-sync
+
+    wget https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/refs/heads/main/webserver/main.py
+
+    cat <<EOF > .env
+    MYSQL_HOST=db.internal.democct
+    MYSQL_ROOT_PASSWORD=root
+    MYSQL_USER=cct
+    MYSQL_PASSWORD=cct-secret
+    MYSQL_DATABASE=cct
+    MYSQL_PORT=3306
+    EOF
+
+    flask --app main.py run --host=0.0.0.0 &
+  permissions: '0744'
+  path: /init.sh
+
+runcmd:
+  - /init.sh

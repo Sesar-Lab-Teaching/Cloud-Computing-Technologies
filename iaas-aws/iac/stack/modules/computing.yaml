@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Computing resources for the cct demo on iaas
+
+
+Parameters:
+  # KeyPairName:
+  #   Type: AWS::EC2::KeyPair::KeyName
+  #   Description: Key pair used to SSH into the instance
+
+  DbCloudInitConfig:
+    Type: String
+    Description: Cloud-init configuration for the database instance
+
+  DbSubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet where the instance will be launched
+
+  DbSecGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: Security Groups for the db
+
+  Route53HostedZone:
+    Type: AWS::Route53::HostedZone::Id
+    Description: Id of the HostedZone for the Route53 DNS
+
+  # DbPrivateIpAddress:
+  #   Type: String
+  #   Default: '10.0.2.50'
+  #   Description: Fixed IP address of the DB instance. By fixing it, the webserver knows in advance how to reach it
+
+
+Resources:
+  DemoCCTDbLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        # Ubuntu Server 24.04 LTS
+        ImageId: ami-0b6c6ebed2801a5cb
+        InstanceType: t2.medium
+        # KeyName: !Ref KeyPairName
+        Monitoring:
+          Enabled: true
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            Description: interface for the private subnet
+            SubnetId: !Ref DbSubnetId
+            Groups: !Ref DbSecGroupIds
+            # PrivateIpAddress: !Ref DbPrivateIpAddress
+        UserData:
+          Fn::Base64: !Ref DbCloudInitConfig
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: demo-cct-db-instance
+
+  DemoCCTDbInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref DemoCCTDbLaunchTemplate
+        Version: !GetAtt DemoCCTDbLaunchTemplate.LatestVersionNumber
+
+  DemoCCTDbRecordA:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref Route53HostedZone
+      Name: db.internal.democct
+      Type: A
+      TTL: 60
+      ResourceRecords:
+        - !GetAtt DemoCCTDbInstance.PrivateIp
+
+
+# Outputs:
+#   SqlInstanceIpAddress:
+#     Description: IP address of the Sql instance created
+#     Value: !GetAtt SqlDbInstance.PrivateIp

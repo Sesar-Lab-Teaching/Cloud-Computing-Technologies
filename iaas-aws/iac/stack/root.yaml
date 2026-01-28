@@ -1,36 +1,63 @@
 AWSTemplateFormatVersion: '2010-09-09'
+
+
+Parameters:
+  DbCloudInitConfig:
+    Type: String
+    Description: Cloud-init configuration for the database instance
+
+
 Resources:
   DemoCCTNetworkingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/iaas/cfn-templates/networking.yaml'
+      # TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/iaas/cfn-templates/networking.yaml'
+      TemplateURL: ./modules/networking.yaml
       Tags:
         - Key: Environment
           Value: demo-cct
 
-  DemoCCTSqlDbStack:
+  DemoCCTComputingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/iaas/cfn-templates/sqldb.yaml'
+      # TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/iaas/cfn-templates/sqldb.yaml'
+      TemplateURL: ./modules/computing.yaml
       Tags:
         - Key: Environment
           Value: demo-cct
       Parameters:
-        KeyPairName: !GetAtt DemoCCTNetworkingStack.Outputs.KeyPair
-        SubnetId: !GetAtt DemoCCTNetworkingStack.Outputs.SubnetId
-        SecGroupId: !GetAtt DemoCCTNetworkingStack.Outputs.SecGroupId
-        PrivateIpAddress: '10.0.0.7' 
+        DbSubnetId: !GetAtt DemoCCTNetworkingStack.Outputs.PrivateSubnet1Id
+        DbSecGroupIds: !Join [ ",", [ !GetAtt DemoCCTNetworkingStack.Outputs.BaseSecGroupId ] ]
+        Route53HostedZone: !GetAtt DemoCCTNetworkingStack.Outputs.Route53HostedZone
+        DbCloudInitConfig: !Ref DbCloudInitConfig
+        # KeyPairName: !GetAtt DemoCCTNetworkingStack.Outputs.KeyPair
+        # SubnetId: !GetAtt DemoCCTNetworkingStack.Outputs.SubnetId
+        # SecGroupId: !GetAtt DemoCCTNetworkingStack.Outputs.SecGroupId
+        # PrivateIpAddress: '10.0.0.7' 
 
-  DemoCCTWebserverStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/iaas/cfn-templates/webserver.yaml'
-      Tags:
-        - Key: Environment
-          Value: demo-cct
-      Parameters:
-        VpcId: !GetAtt DemoCCTNetworkingStack.Outputs.VpcId
-        KeyPairName: !GetAtt DemoCCTNetworkingStack.Outputs.KeyPair
-        SubnetId: !GetAtt DemoCCTNetworkingStack.Outputs.SubnetId
-        SecGroupId: !GetAtt DemoCCTNetworkingStack.Outputs.SecGroupId
-        SqlDbIPAddress: !GetAtt DemoCCTSqlDbStack.Outputs.SqlInstanceIpAddress
+  # DemoCCTSqlDbStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/iaas/cfn-templates/sqldb.yaml'
+  #     Tags:
+  #       - Key: Environment
+  #         Value: demo-cct
+  #     Parameters:
+  #       KeyPairName: !GetAtt DemoCCTNetworkingStack.Outputs.KeyPair
+  #       SubnetId: !GetAtt DemoCCTNetworkingStack.Outputs.SubnetId
+  #       SecGroupId: !GetAtt DemoCCTNetworkingStack.Outputs.SecGroupId
+  #       PrivateIpAddress: '10.0.0.7' 
+
+  # DemoCCTWebserverStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/iaas/cfn-templates/webserver.yaml'
+  #     Tags:
+  #       - Key: Environment
+  #         Value: demo-cct
+  #     Parameters:
+  #       VpcId: !GetAtt DemoCCTNetworkingStack.Outputs.VpcId
+  #       KeyPairName: !GetAtt DemoCCTNetworkingStack.Outputs.KeyPair
+  #       SubnetId: !GetAtt DemoCCTNetworkingStack.Outputs.SubnetId
+  #       SecGroupId: !GetAtt DemoCCTNetworkingStack.Outputs.SecGroupId
+  #       SqlDbIPAddress: !GetAtt DemoCCTSqlDbStack.Outputs.SqlInstanceIpAddress

@@ -9,43 +9,47 @@ AWS CFN currently has a quite annoying limitation: nested template files must be
 First we need to create a new S3 bucket that will contain the nested templates. 
 
 ```bash
-BUCKET_NAME=demo-cct1
-aws s3 mb s3://$BUCKET_NAME
+BUCKET_NAME=cct-demo
+aws s3 mb s3://$BUCKET_NAME || echo "Bucket already exists"
 ```
 
-Then we copy our templates (previously validated) in the S3 bucket:
+We first need to validate the templates:
 
 ```bash
-function upload_templates {
-    for child_template in stack/modules/*
+function validate_templates {
+    for nested_template in stack/modules/*
     do
-        aws cloudformation validate-template --template-body file://$child_template && \
-        aws s3 cp $child_template "s3://$BUCKET_NAME/iaas/cfn-templates/$(basename "$child_template")"
+        aws cloudformation validate-template --template-body file://$nested_template
     done
+    aws cloudformation validate-template --template-body file://stack/root.yaml
 }
-upload_templates
+
+validate_templates
 ```
 
-Finally, we can deploy the root stack, which includes the child templates, with:
+Then we use the `package` command to upload the nested templates to the S3 bucket, and `deploy` to deploy the root stack together with the nested ones. Each deploy creates a change set only if the resources have changed.
 
 ```bash
-aws cloudformation validate-template --template-body file://stack/root.yaml && \
-aws cloudformation create-stack \
-    --stack-name demo-cct-iaas \
-    --template-body file://stack/root.yaml
+function deploy_stack {
+    aws cloudformation package \
+        --s3-bucket "$BUCKET_NAME" \
+        --s3-prefix 'iaas' \
+        --template-file ./stack/root.yaml \
+        --output-template-file packaged-root.yaml
+
+    aws cloudformation deploy \
+        --template-file packaged-root.yaml \
+        --stack-name demo-cct-iaas \
+        --capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
+        --parameter-overrides DbCloudInitConfig="$(cat cloud-init/db.yaml)"
+    
+    rm packaged-root.yaml
+}
+
+deploy_stack
 ```
 
-To update the stack:
-
-```bash
-upload_templates
-aws cloudformation validate-template --template-body file://stack/root.yaml && \
-aws cloudformation update-stack \
-    --stack-name demo-cct-iaas \
-    --template-body file://stack/root.yaml
-```
-
-To delete your stack:
+To delete the stack:
 
 ```bash
 aws cloudformation delete-stack --stack-name demo-cct-iaas
