@@ -1,52 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+
 Description: Api Gateway for the Lambda invocation
+
 
 Parameters:
   GetDataLambdaArn:
     Description: Arn of the Lambda that gets account data
     Type: String
 
-Outputs:
-  Endpoint:
-    Description: The endpoint to connect to the API Gateway
-    Value: !Sub https://${HTTPApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
 
 Resources:
+  # ------------------------ API Gateway (HTTP)
+  # Two types of gateway exists, REST API and HTTP API. They are both RESTful, but REST APIs support more features than HTTP APIs.
+  # However, HTTP APIs are cheaper.
   HTTPApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
       ProtocolType: HTTP
-      Name: apigw-demo-cct
-  LambdaIntegration:
+      Name: demo-cct-paas-apigw
+
+  GetDataLambdaIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref HTTPApi
       PassthroughBehavior: WHEN_NO_MATCH
-      TimeoutInMillis: 21000
+      # Same as Lambda Timeout
+      TimeoutInMillis: 20000
       IntegrationMethod: POST
       IntegrationType: AWS_PROXY
       PayloadFormatVersion: "2.0"
       IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetDataLambdaArn}/invocations"
+
+  # ------------------------ Route for GET /accounts.html
   GetDataRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HTTPApi
       AuthorizationType: NONE
       RouteKey: "GET /accounts.html"
-      Target: !Join
-        - /
-        - - integrations
-          - !Ref LambdaIntegration
-  Deployment:
+      Target: !Sub 'integrations/${GetDataLambdaIntegration}'
+
+  # ------------------------ Deployment
+  ApiDeployment:
     Type: AWS::ApiGatewayV2::Deployment
     DependsOn:
       - GetDataRoute
     Properties:
-      Description: API Deployment
+      Description: API Deployment for Demo CCT on PaaS
       ApiId: !Ref HTTPApi
-  Stage:
+
+  ApiStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
-      DeploymentId: !Ref Deployment
+      DeploymentId: !Ref ApiDeployment
       Description: Stage v1
       ApiId: !Ref HTTPApi
       StageName: "v1"
+
+
+Outputs:
+  Endpoint:
+    Description: The endpoint to connect to the API Gateway
+    Value: !Sub 
+      - '${ApiGatewayUrl}/${ApiStage}'
+      - ApiGatewayUrl: !GetAtt HTTPApi.ApiEndpoint

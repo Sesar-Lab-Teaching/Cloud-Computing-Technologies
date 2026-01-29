@@ -12,13 +12,13 @@ Similarly to what we have done with IaaS, we can provision the PaaS infrastructu
 
 ## Images for Lambda
 
-To create a Lambda Function, we first need to specify a deployment package. We can use a `.zip` file or a Docker image. In this demo, we will explore the second approach, therefore we first need to create an `ECR` repository for each Lambda function involved. 
+To create a Lambda Function, we first need to specify a deployment package, which can be either a `.zip` file or a container image. In this demo, we will explore the second approach, therefore we first need to create an `ECR` repository for each Lambda function involved. 
 
 ```bash
-aws cloudformation validate-template --template-body file://stack/ecr-repositories.yaml && \
-aws cloudformation create-stack \
+aws cloudformation validate-template --template-body file://stack/ecr-repositories.yaml
+aws cloudformation deploy \
     --stack-name demo-cct-paas-ecr-repositories \
-    --template-body file://stack/ecr-repositories.yaml
+    --template-file stack/ecr-repositories.yaml
 ```
 
 Then we save the repository URI for later:
@@ -37,11 +37,8 @@ GET_DATA_LAMBDA_REPO_URI="$(aws cloudformation describe-stacks \
 Now we can create the Docker images:
 
 ```bash
-(
-    cd ../src
-    docker build -t "$SEED_DB_LAMBDA_REPO_URI" -f Dockerfile.lambda_seed_db .
-    docker build -t "$GET_DATA_LAMBDA_REPO_URI" -f Dockerfile.lambda_get_data .
-)
+docker build --platform linux/amd64 --provenance=false -t "$SEED_DB_LAMBDA_REPO_URI" -f ../src/Dockerfile.lambda_seed_db ../src
+docker build --platform linux/amd64 --provenance=false -t "$GET_DATA_LAMBDA_REPO_URI" -f ../src/Dockerfile.lambda_get_data ../src
 ```
 
 And push them on the ECR registry:
@@ -58,53 +55,56 @@ docker push "$GET_DATA_LAMBDA_REPO_URI"
 
 ---
 
-## The Complete stack
+## Deploy the Scenario
 
-We can now deploy the entire stack. First, create the S3 bucket (you can reuse the same one created for the demo `iaas-aws`:
+We can now deploy the stack with all the PaaS components. First, create the S3 bucket (you can reuse the same one created for the demo `iaas-aws`:
 
 ```bash
-BUCKET_NAME=demo-cct1
+BUCKET_NAME=cct-demo
 aws s3 mb s3://$BUCKET_NAME
 ```
 
-Upload on S3 the nested stacks:
+First we validate the template:
 
 ```bash
-function upload_templates {
-    for child_template in stack/modules/*
+function validate_templates {
+    for nested_template in stack/modules/*
     do
-        echo "Uploading $child_template"
-        aws cloudformation validate-template --template-body file://$child_template > /dev/null && \
-        aws s3 cp $child_template "s3://$BUCKET_NAME/paas/cfn-templates/$(basename "$child_template")"
+        aws cloudformation validate-template --template-body file://$nested_template
     done
+    aws cloudformation validate-template --template-body file://stack/root.yaml
 }
-upload_templates
+
+validate_templates
 ```
 
-Then, we can create the stack:
+Then, similarly to what we have done in the iaas demo with aws, we use the `package` and `deploy` commands to deploy the root stack with the nested ones:
 
 ```bash
-aws cloudformation validate-template --template-body file://stack/root.yaml && \
-aws cloudformation create-stack \
-    --stack-name demo-cct-paas \
-    --parameters "[
-        {
-            \"ParameterKey\": \"ECRSeedDbLambdaRepository\",
-            \"ParameterValue\": \"$SEED_DB_LAMBDA_REPO_URI\"
-        },
-        {
-            \"ParameterKey\": \"ECRGetDataLambdaRepository\",
-            \"ParameterValue\": \"$GET_DATA_LAMBDA_REPO_URI\"
-        }
-    ]" \
-    --capabilities CAPABILITY_NAMED_IAM \
-    --template-body file://stack/root.yaml
+function deploy_stack {
+    aws cloudformation package \
+        --s3-bucket "$BUCKET_NAME" \
+        --s3-prefix 'paas' \
+        --template-file ./stack/root.yaml \
+        --output-template-file packaged-root.yaml
+
+    aws cloudformation deploy \
+        --template-file packaged-root.yaml \
+        --stack-name demo-cct-paas \
+        --capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
+        --parameter-overrides ECRSeedDbLambdaRepository="$SEED_DB_LAMBDA_REPO_URI" ECRGetDataLambdaRepository="$GET_DATA_LAMBDA_REPO_URI"
+    
+    rm packaged-root.yaml
+}
+
+deploy_stack
 ```
 
 To delete the stack:
 
 ```bash
 aws cloudformation delete-stack --stack-name demo-cct-paas
+aws cloudformation delete-stack --stack-name demo-cct-paas-ecr-repositories
 ```
 
 ---
@@ -124,6 +124,7 @@ Run the Lambda with:
 
 ```bash
 aws lambda invoke --function-name "$SEED_DB_LAMBDA_ARN" response.json
+cat response.json && rm response.json
 ```
 
 ---

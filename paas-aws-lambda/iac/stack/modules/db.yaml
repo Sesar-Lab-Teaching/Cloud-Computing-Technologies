@@ -1,49 +1,46 @@
-Description: CloudFormation template for deploying the network
+AWSTemplateFormatVersion: '2010-09-09'
+
+
+Description: template for deploying the db instance
+
 
 Parameters:
   DbName:
     Description: The name of the database
     Type: String
+
   DbUsername:
     Description: username to access the db
     Type: String
+
   DbPassword:
     Description: password to access the db
     Type: String
-  SecGroup:
-    Description: VPC Security group of the DB
-    Type: String
-  Subnet1Id:
-    Description: The ID of the Subnet 1 within the VPC
-    Type: String
-  Subnet2Id:
-    Description: The ID of the Subnet 2 within the VPC
-    Type: String
 
-Outputs:
-  Endpoint:
-    Description: endpoint at which the db is exposed
-    Value: !GetAtt RDSInstance.Endpoint.Address
-  Port:
-    Description: port at which the db is exposed
-    Value: !GetAtt RDSInstance.Endpoint.Port
+  DbSecGroupIds:
+    Description: Security groups of the DB
+    Type: List<AWS::EC2::SecurityGroup::Id>
+
+  DbSubnetIds:
+    Description: Subnet ids where db is deployed
+    Type: List<AWS::EC2::Subnet::Id>
+
 
 Resources:
+  # ------------------------ RDS instance
   RDSSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: Subnet group for the demo on paas
-      DBSubnetGroupName: demo-cct-subnet-group
-      SubnetIds: 
-        - !Ref Subnet1Id
-        - !Ref Subnet2Id
+      DBSubnetGroupDescription: Subnet group for the RDS db 
+      DBSubnetGroupName: demo-cct-paas-db-subnet-group
+      SubnetIds: !Ref DbSubnetIds
 
   RDSInstance:
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: '10'
       DBInstanceClass: 'db.t3.small'
-      DBInstanceIdentifier: 'demo-cct-db'
+      DBInstanceIdentifier: 'demo-cct-paas-db'
       DBName: !Ref DbName
       DBSubnetGroupName: !Ref RDSSubnetGroup
       Engine: mysql
@@ -52,5 +49,10 @@ Resources:
       MasterUserPassword: !Ref DbPassword
       Port: '3306'
       PubliclyAccessible: false
-      VPCSecurityGroups: 
-        - !Ref SecGroup
+      VPCSecurityGroups: !Ref DbSecGroupIds
+
+
+Outputs:
+  Endpoint:
+    Description: endpoint at which the db is exposed
+    Value: !GetAtt RDSInstance.Endpoint.Address

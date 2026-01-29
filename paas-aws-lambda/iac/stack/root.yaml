@@ -1,36 +1,36 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+
 Parameters:
   ECRSeedDbLambdaRepository:
     Description: ECR repository uri for the lambda seed-db
     Type: String
+
   ECRGetDataLambdaRepository:
     Description: ECR repository uri for the lambda get-data
     Type: String
+
   DbName:
     Description: database name
     Type: String
     Default: democct
+
   DbUsername:
     Description: db instance username
     Type: String
     Default: demouser
+
   DbPassword:
     Description: db instance password
     Type: String
     Default: demopassword
 
-Outputs:
-  SeedDbLambdaArn:
-    Description: Arn of the Lambda that seeds the Db
-    Value: !GetAtt SeedDbLambdaStack.Outputs.LambdaArn
-  ApiGatewayEndpoint:
-    Description: Endpoint of the api gateway
-    Value: !GetAtt ApiGateway.Outputs.Endpoint
 
 Resources:
   NetworkingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/paas/cfn-templates/networking.yaml'
+      TemplateURL: ./modules/networking.yaml
       Tags:
         - Key: Environment
           Value: demo-cct-paas
@@ -38,7 +38,7 @@ Resources:
   RDSStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/paas/cfn-templates/db.yaml'
+      TemplateURL: ./modules/db.yaml
       Tags:
         - Key: Environment
           Value: demo-cct-paas
@@ -46,62 +46,42 @@ Resources:
         DbName: !Ref DbName
         DbUsername: !Ref DbUsername
         DbPassword: !Ref DbPassword
-        SecGroup: !GetAtt NetworkingStack.Outputs.SecGroup
-        Subnet1Id: !GetAtt NetworkingStack.Outputs.Subnet1Id
-        Subnet2Id: !GetAtt NetworkingStack.Outputs.Subnet2Id
+        DbSecGroupIds: !Join [ ",", [ !GetAtt NetworkingStack.Outputs.DbSecGroupId ] ]
+        DbSubnetIds: !Join [ ",", [ !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id, !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id ] ]
 
-  AuthorizationStack:
+  LambdaStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/paas/cfn-templates/authorization.yaml'
-      Tags:
-        - Key: Environment
-          Value: demo-cct-paas
-
-  SeedDbLambdaStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/paas/cfn-templates/seed-db-lambda.yaml'
+      TemplateURL: ./modules/lambda.yaml
       Tags:
         - Key: Environment
           Value: demo-cct-paas
       Parameters:
-        ECRLambdaRepository: !Ref ECRSeedDbLambdaRepository
-        RoleArn: !GetAtt AuthorizationStack.Outputs.LambdaRoleArn
-        SecGroup: !GetAtt NetworkingStack.Outputs.SecGroup
-        Subnet1Id: !GetAtt NetworkingStack.Outputs.Subnet1Id
-        Subnet2Id: !GetAtt NetworkingStack.Outputs.Subnet2Id
+        ECRSeedDbLambdaRepository: !Ref ECRSeedDbLambdaRepository
+        ECRGetDataLambdaRepository: !Ref ECRGetDataLambdaRepository
+        LambdaSecGroupIds: !Join [ ",", [ !GetAtt NetworkingStack.Outputs.DbSecGroupId ] ]
+        LambdaSubnetIds: !Join [ ",", [ !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id, !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id ] ]
         DbName: !Ref DbName
         DbUsername: !Ref DbUsername
         DbPassword: !Ref DbPassword
         DbEndpoint: !GetAtt RDSStack.Outputs.Endpoint
-        DbPort: !GetAtt RDSStack.Outputs.Port
-
-  GetDataLambdaStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/paas/cfn-templates/get-data-lambda.yaml'
-      Tags:
-        - Key: Environment
-          Value: demo-cct-paas
-      Parameters:
-        ECRLambdaRepository: !Ref ECRGetDataLambdaRepository
-        RoleArn: !GetAtt AuthorizationStack.Outputs.LambdaRoleArn
-        SecGroup: !GetAtt NetworkingStack.Outputs.SecGroup
-        Subnet1Id: !GetAtt NetworkingStack.Outputs.Subnet1Id
-        Subnet2Id: !GetAtt NetworkingStack.Outputs.Subnet2Id
-        DbName: !Ref DbName
-        DbUsername: !Ref DbUsername
-        DbPassword: !Ref DbPassword
-        DbEndpoint: !GetAtt RDSStack.Outputs.Endpoint
-        DbPort: !GetAtt RDSStack.Outputs.Port
     
   ApiGateway:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: 'https://demo-cct1.s3.eu-central-1.amazonaws.com/paas/cfn-templates/api-gateway.yaml'
+      TemplateURL: ./modules/api-gateway.yaml
       Tags:
         - Key: Environment
           Value: demo-cct-paas
       Parameters:
-        GetDataLambdaArn: !GetAtt GetDataLambdaStack.Outputs.LambdaArn
+        GetDataLambdaArn: !GetAtt LambdaStack.Outputs.GetDataLambdaArn
+
+
+Outputs:
+  SeedDbLambdaArn:
+    Description: Arn of the Lambda that seeds the Db
+    Value: !GetAtt LambdaStack.Outputs.SeedDbLambdaArn
+    
+  ApiGatewayEndpoint:
+    Description: Endpoint of the api gateway
+    Value: !GetAtt ApiGateway.Outputs.Endpoint

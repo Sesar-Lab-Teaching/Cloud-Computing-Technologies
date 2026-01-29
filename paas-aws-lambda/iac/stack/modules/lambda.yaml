@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+
+Description: template for deploying the Lambda functions
+
+
+Parameters:
+  ECRSeedDbLambdaRepository:
+    Description: ECR repository uri for the lambda to seed the db
+    Type: String
+
+  ECRGetDataLambdaRepository:
+    Description: ECR repository uri for the lambda to get data from db
+    Type: String
+
+  LambdaSecGroupIds:
+    Description: Security group for the lambda
+    Type: List<AWS::EC2::SecurityGroup::Id>
+
+  LambdaSubnetIds:
+    Description: Subnet IDs where lambdas will be deployed
+    Type: List<AWS::EC2::Subnet::Id>
+
+  DbName:
+    Description: The name of the database
+    Type: String
+
+  DbUsername:
+    Description: username to access the db
+    Type: String
+
+  DbPassword:
+    Description: password to access the db
+    Type: String
+
+  DbEndpoint:
+    Description: endpoint used to access the db instance
+    Type: String
+
+
+Resources:
+  # ------------------------ IAM Role for Lambda
+  # A role's trust policy gives the specified principals permission to assume the role.
+  # in this case, grant the Lambda service principal permission to assume your role and access other AWS services as if it was you.
+  # We can attach other policies, managed or created by us
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      RoleName: demo-cct-paas-lambda-role
+
+  # ------------------------ Seed Db Lambda
+  SeedDbLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code: 
+        ImageUri: !Sub
+          - '${ECRRepo}:latest'
+          - ECRRepo: !Ref ECRSeedDbLambdaRepository
+      Environment:
+        Variables:
+          MYSQL_HOST: !Ref DbEndpoint
+          MYSQL_USER: !Ref DbUsername
+          MYSQL_PASSWORD: !Ref DbPassword
+          MYSQL_DATABASE: !Ref DbName
+          MYSQL_PORT: '3306'
+      FunctionName: demo-cct-paas-lambda-seed-db
+      PackageType: Image
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 20
+      VpcConfig: 
+        SecurityGroupIds: !Ref LambdaSecGroupIds
+        SubnetIds: !Ref LambdaSubnetIds
+
+  # ------------------------ Get Data Lambda
+  GetDataLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code: 
+        ImageUri: !Sub
+          - '${ECRRepo}:latest'
+          - ECRRepo: !Ref ECRGetDataLambdaRepository
+      Environment:
+        Variables:
+          MYSQL_HOST: !Ref DbEndpoint
+          MYSQL_USER: !Ref DbUsername
+          MYSQL_PASSWORD: !Ref DbPassword
+          MYSQL_DATABASE: !Ref DbName
+          MYSQL_PORT: '3306'
+      FunctionName: demo-cct-paas-lambda-get-data
+      PackageType: Image
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 20
+      VpcConfig: 
+        SecurityGroupIds: !Ref LambdaSecGroupIds
+        SubnetIds: !Ref LambdaSubnetIds
+
+  # ------------------------ Permission for Api Gateway to invoke Get Data Lambda
+  ApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GetDataLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+
+
+Outputs:
+  SeedDbLambdaArn:
+    Description: Arn of the seed-db Lambda
+    Value: !GetAtt SeedDbLambda.Arn
+
+  GetDataLambdaArn:
+    Description: Arn of the get-data Lambda
+    Value: !GetAtt GetDataLambda.Arn

@@ -1,11 +1,8 @@
-Outputs:
-  SeedDbLambdaRepoUri:
-    Description: ECR Repository of the seed-db Lambda
-    Value: !GetAtt ECRSeedDbLambdaRepository.RepositoryUri
+AWSTemplateFormatVersion: '2010-09-09'
 
-  GetDataLambdaRepoUri:
-    Description: ECR Repository of the get-data Lambda
-    Value: !GetAtt ECRGetDataLambdaRepository.RepositoryUri
+
+Description: ECR repositories for Lambda functions
+
 
 Resources:
   ECRSeedDbLambdaRepository:
@@ -25,3 +22,13 @@ Resources:
       RepositoryName: demo-cct-lambda-get-data
       ImageScanningConfiguration:
         ScanOnPush: true
+
+
+Outputs:
+  SeedDbLambdaRepoUri:
+    Description: ECR Repository of the seed-db Lambda
+    Value: !GetAtt ECRSeedDbLambdaRepository.RepositoryUri
+
+  GetDataLambdaRepoUri:
+    Description: ECR Repository of the get-data Lambda
+    Value: !GetAtt ECRGetDataLambdaRepository.RepositoryUri

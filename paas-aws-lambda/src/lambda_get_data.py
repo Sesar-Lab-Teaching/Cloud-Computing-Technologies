@@ -1,6 +1,5 @@
 import os
 import socket
-import json
 import mysql.connector
 from mysql.connector import errorcode
 
