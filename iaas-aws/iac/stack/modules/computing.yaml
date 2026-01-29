@@ -4,33 +4,55 @@ Description: Computing resources for the cct demo on iaas
 
 
 Parameters:
-  # KeyPairName:
-  #   Type: AWS::EC2::KeyPair::KeyName
-  #   Description: Key pair used to SSH into the instance
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC Id
 
   DbCloudInitConfig:
     Type: String
-    Description: Cloud-init configuration for the database instance
+    Description: Cloud-init configuration for the db instance
 
   DbSubnetId:
     Type: AWS::EC2::Subnet::Id
-    Description: Subnet where the instance will be launched
+    Description: Subnet where the db will be launched
 
   DbSecGroupIds:
     Type: List<AWS::EC2::SecurityGroup::Id>
     Description: Security Groups for the db
 
+  WebServerCloudInitConfig:
+    Type: String
+    Description: Cloud-init configuration for the webserver instance
+
+  WebServerSecGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: Security Groups for the webserver
+
+  LoadBalancerSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets where the loadbalancer is deployed
+
+  LoadBalancerSecGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: Security groups for the loadbalancer
+
+  AutoScalingGroupSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnet Ids where the Auto scaling group can deploy instances
+
   Route53HostedZone:
     Type: AWS::Route53::HostedZone::Id
     Description: Id of the HostedZone for the Route53 DNS
 
-  # DbPrivateIpAddress:
-  #   Type: String
-  #   Default: '10.0.2.50'
-  #   Description: Fixed IP address of the DB instance. By fixing it, the webserver knows in advance how to reach it
-
 
 Resources:
+  # ------------------------ SSH Key Pair
+  DemoCCTKeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties: 
+      KeyName: demo-cct-key-pair
+
+  # ------------------------ Db Instance
   DemoCCTDbLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -38,7 +60,6 @@ Resources:
         # Ubuntu Server 24.04 LTS
         ImageId: ami-0b6c6ebed2801a5cb
         InstanceType: t2.medium
-        # KeyName: !Ref KeyPairName
         Monitoring:
           Enabled: true
         NetworkInterfaces:
@@ -46,7 +67,6 @@ Resources:
             Description: interface for the private subnet
             SubnetId: !Ref DbSubnetId
             Groups: !Ref DbSecGroupIds
-            # PrivateIpAddress: !Ref DbPrivateIpAddress
         UserData:
           Fn::Base64: !Ref DbCloudInitConfig
         TagSpecifications:
@@ -62,6 +82,7 @@ Resources:
         LaunchTemplateId: !Ref DemoCCTDbLaunchTemplate
         Version: !GetAtt DemoCCTDbLaunchTemplate.LatestVersionNumber
 
+  # ------------------------ DNS record (type A) for db
   DemoCCTDbRecordA:
     Type: AWS::Route53::RecordSet
     Properties:
@@ -72,8 +93,102 @@ Resources:
       ResourceRecords:
         - !GetAtt DemoCCTDbInstance.PrivateIp
 
+  # ------------------------ WebServer
+  DemoCCTWebserverLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        # Ubuntu Server 24.04 LTS
+        ImageId: ami-0b6c6ebed2801a5cb
+        InstanceType: t2.medium
+        KeyName: !Ref DemoCCTKeyPair
+        Monitoring:
+          Enabled: true
+        NetworkInterfaces:
+          # A Public Nat Gateway avoid the assignment of multiple public IP addresses, but has additional costs
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            # The auto scaling group determines the subnet where to deploy the instance
+            # SubnetId: !Ref WebServerSubnetId
+            Groups: !Ref WebServerSecGroupIds
+        UserData: 
+          Fn::Base64: !Ref WebServerCloudInitConfig
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: demo-cct-webserver-instance
 
-# Outputs:
-#   SqlInstanceIpAddress:
-#     Description: IP address of the Sql instance created
-#     Value: !GetAtt SqlDbInstance.PrivateIp
+  # ------------------------ Load Balancer
+  DemoCCTLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: demo-cct-load-balancer
+      Type: application
+      Subnets: !Ref LoadBalancerSubnetIds
+      SecurityGroups: !Ref LoadBalancerSecGroupIds
+
+  # Target groups route requests to individual registered targets, such as EC2 instances, using the protocol and port number that you specify.
+  DemoCCTLoadBalancerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 15
+      HealthCheckPath: /health
+      HealthCheckPort: 5000
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 6
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Port: 5000
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+
+  # A listener is a process that checks for connection requests, using the protocol and port that you configure.
+  # The rules that you define for your listeners determine how the load balancer routes requests to the targets that you register
+  DemoCCTLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref DemoCCTLoadBalancerTargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref DemoCCTLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # ------------------------ Auto Scaling Group
+  # An Auto Scaling group contains a collection of EC2 instances that are treated as a logical grouping for the purposes of automatic scaling and management. 
+  DemoCCTAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    # The instances in the auto scaling group must already be aware of the dns record for the db
+    DependsOn: DemoCCTDbRecordA
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref DemoCCTWebserverLaunchTemplate
+        Version: !GetAtt DemoCCTWebserverLaunchTemplate.LatestVersionNumber
+      HealthCheckType: ELB
+      # Wait for the cloud-init to complete, otherwise the ELB health check would mark it as unhealthy as soon as it is registered in the target group
+      HealthCheckGracePeriod: 200
+      MaxSize: '3'
+      # DesiredCapacity works with simple scaling, not with automatic scaling
+      # DesiredCapacity: '2'
+      MinSize: '1'
+      # require a dependency on VPNGatewayAttachment but the entire stack already depends on the networking stack
+      VPCZoneIdentifier: !Ref AutoScalingGroupSubnetIds
+      TargetGroupARNs:
+        - !Ref DemoCCTLoadBalancerTargetGroup
+
+  DemoCCTAutoScalingGroupScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    DependsOn: DemoCCTLoadBalancerListener
+    Properties:
+      AutoScalingGroupName: !Ref DemoCCTAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ALBRequestCountPerTarget
+          ResourceLabel: !Join 
+            - '/' 
+            - - !GetAtt DemoCCTLoadBalancer.LoadBalancerFullName
+              - !GetAtt DemoCCTLoadBalancerTargetGroup.TargetGroupFullName
+        # Specifies the optimal average request count per instance during the 1-minute interval
+        TargetValue: 10

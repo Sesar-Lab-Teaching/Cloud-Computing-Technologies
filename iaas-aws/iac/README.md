@@ -41,7 +41,7 @@ function deploy_stack {
         --template-file packaged-root.yaml \
         --stack-name demo-cct-iaas \
         --capabilities CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
-        --parameter-overrides DbCloudInitConfig="$(cat cloud-init/db.yaml)"
+        --parameter-overrides DbCloudInitConfig="$(cat cloud-init/db.yaml)" WebServerCloudInitConfig="$(cat cloud-init/webserver.yaml)"
     
     rm packaged-root.yaml
 }
@@ -73,22 +73,50 @@ aws ssm get-parameter \
 chmod 400 demo-key-pair.pem
 ```
 
-After creating the stack, the instances can be accessed with SSH using an Elastic IP address (which needs to be created and associated to the instance you want to connect to).
+After creating the stack, the webserver instance can be accessed with SSH using the assigned IP address. The db instance can only be accessed using an EC2 instance Connect Endpoint, already provisioned through the networking stack.
+
+Find the public IP associated to the first web-server instance:
 
 ```bash
-ELASTIC_IP="$(aws ec2 describe-addresses \
-    --filters "Name=tag:Environment,Values=demo-cct" \
-    --query "Addresses[0].PublicIp" \
+WEBSERVER_IP="$(aws ec2 describe-instances \
+    --filters "Name=tag:Name,Values=demo-cct-webserver-instance" \
+    --query "Reservations[0].Instances[0].NetworkInterfaces[0].Association.PublicIp" \
     --output text)"
-ssh -i "demo-key-pair.pem" -o IdentitiesOnly=yes admin@${ELASTIC_IP}
+ssh -i "demo-key-pair.pem" -o IdentitiesOnly=yes ubuntu@${WEBSERVER_IP}
 ```
-
-### NAT Gateway
-
-Instances in a private subnet can access internet only if they are created with a public IP address associated. Without a public IP, we need to deploy an additional [NAT Gateway](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html). 
 
 ---
 
-## Load Balancer
+## Access the Webserver
 
-The CloudFormation script also includes a load balancer that balance traffic among the registered instances. These instances are added to an autoscaling group: instances associated to this group can scale manually, or using a [dynamic policy](https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scale-based-on-demand.html). The listener of the Load balancer is then configured to forward traffic coming from port 80 to one of the registered instances (port 5000) in the autoscaling group.
+We can access the webserver directly from the public IP address, but the optimal access point is the Load balancer, so that it takes care of distributing the load among the registered instances. To retrieve the Load balancer endpoint:
+
+```bash
+LOAD_BALANCER_ENDPOINT="$(aws elbv2 describe-load-balancers \
+    --names "demo-cct-load-balancer" \
+    --query "LoadBalancers[0].DNSName" \
+    --output text)"
+echo "$LOAD_BALANCER_ENDPOINT"
+```
+
+Send an HTTP request to `LOAD_BALANCER_ENDPOINT` to see the response from the webserver
+
+---
+
+## Trigger a Scale out
+
+The auto scaling group is configured to allow up to 3 instances of the webserver. The instances scales out automatically thanks to the dynamic scaling policy (Target-Tracking scaling). The target value for the scaling policy is 10 requests per target (per instance) in a 1 minute period. If the load balancer receives too many requests and the average number of requests received by each instance is more than 10, one ore more new instances are deployed. This behaviour works in the opposite direction as well: if the number of instances is too high, i.e. they are underloaded considering the low number of requests, some instances might be destroyed.
+
+To trigger a scale out, we can continuously send requests to the load balancer:
+
+```bash
+for ((i=0; ;i++))
+do
+    echo "$i ... Sending HTTP request to load balancer"
+    curl --output /dev/null -s "$LOAD_BALANCER_ENDPOINT"
+    echo "$i ... request received"
+    sleep 1
+done
+```
+
+After a while, three instances will be deployed in the target group and the load balancer will distribute requests across all the available instances, in both AZ zones (`PublicSubnet2` and `PublicSubnet2`). If you stop the script, the target group scales in after some time.

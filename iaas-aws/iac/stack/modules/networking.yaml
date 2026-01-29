@@ -161,8 +161,32 @@ Resources:
       ToPort: 65535
       SourceSecurityGroupId: !Ref DemoCCTBaseSecGroup
 
+  DemoCCTSecGroupAllowTCP5000Port:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: DemoCCTSecGroupAllowTCP5000Port
+      GroupDescription: Allow TCP connections to port 5000
+      VpcId: !Ref DemoCCTVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+
+  DemoCCTSecGroupAllowHTTPPort:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: DemoCCTSecGroupAllowHTTPPort
+      GroupDescription: Allow http connections
+      VpcId: !Ref DemoCCTVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
   # ------------------------ EC2 Instance connect
-  # necessary to connect to an instance, without requiring the instance to have a public IPv4 address
+  # necessary to connect to an instance, without requiring the instance to be in a public subnet
 
   DemoCCTEC2InstanceConnect:
     Type: AWS::EC2::InstanceConnectEndpoint
@@ -170,11 +194,6 @@ Resources:
       SubnetId: !Ref DemoCCTPrivateSubnet1
       SecurityGroupIds:
         - !Ref DemoCCTBaseSecGroup
-      
-  # DemoCCTKeyPair:
-  #   Type: AWS::EC2::KeyPair
-  #   Properties: 
-  #     KeyName: demo-cct-key-pair
 
 
 Outputs:
@@ -202,10 +221,14 @@ Outputs:
     Description: "The ID of the Base Security Group"
     Value: !Ref DemoCCTBaseSecGroup
 
+  Allow5000SecGroupId:
+    Description: "The ID of the Security Group that allows TCP conns to 5000"
+    Value: !Ref DemoCCTSecGroupAllowTCP5000Port
+
+  AllowHTTPSecGroupId:
+    Description: "The ID of the Security Group that allows Http conns"
+    Value: !Ref DemoCCTSecGroupAllowHTTPPort
+
   Route53HostedZone:
     Description: "The ID of the Route53 Hosted Zone"
     Value: !Ref DemoCCTCustomDNS
-
-  # KeyPair:
-  #   Description: "The Name of the Key Pair used to access instances"
-  #   Value: !Ref DemoCCTKeyPair
