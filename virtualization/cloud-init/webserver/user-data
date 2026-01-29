@@ -1,6 +1,6 @@
 #cloud-config
 #
-# provisioning script of mysql db for ubuntu-based distro
+# provisioning script of webserver for ubuntu-based distro
 hostname: webserver
 ssh_pwauth: true
 password: cct-webserver

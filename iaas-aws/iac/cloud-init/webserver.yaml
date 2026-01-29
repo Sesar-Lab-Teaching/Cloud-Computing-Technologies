@@ -1,7 +1,9 @@
 #cloud-config
 #
-# provisioning script of mysql db for ubuntu-based distro
-hostname: webserver
+# provisioning script of webserver for ubuntu-based distro
+
+# remove hostname to let aws assign instance-based hostname, useful to verify load balancer is distributing traffic
+# hostname: webserver
 ssh_pwauth: true
 password: cct-webserver
 chpasswd:
