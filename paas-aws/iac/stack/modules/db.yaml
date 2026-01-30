@@ -39,7 +39,7 @@ Resources:
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: '10'
-      DBInstanceClass: 'db.t3.small'
+      DBInstanceClass: 'db.t3.medium'
       DBInstanceIdentifier: 'demo-cct-paas-db'
       DBName: !Ref DbName
       DBSubnetGroupName: !Ref RDSSubnetGroup

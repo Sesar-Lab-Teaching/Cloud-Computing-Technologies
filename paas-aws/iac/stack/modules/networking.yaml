@@ -36,7 +36,7 @@ Resources:
   DbSecGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: demo-cct-db-sec-group
+      GroupName: demo-cct-paas-db-sec-group
       GroupDescription: Security group for db instance
       VpcId: !Ref VPC
 
