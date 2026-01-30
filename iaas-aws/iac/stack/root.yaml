@@ -12,29 +12,35 @@ Parameters:
 
 
 Resources:
-  DemoCCTNetworkingStack:
+  NetworkingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: ./modules/networking.yaml
       Tags:
         - Key: Environment
-          Value: demo-cct
+          Value: demo-cct-iaas
 
-  DemoCCTComputingStack:
+  ComputingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: ./modules/computing.yaml
       Tags:
         - Key: Environment
-          Value: demo-cct
+          Value: demo-cct-iaas
       Parameters:
-        VpcId: !GetAtt DemoCCTNetworkingStack.Outputs.VpcId
+        VpcId: !GetAtt NetworkingStack.Outputs.VpcId
         DbCloudInitConfig: !Ref DbCloudInitConfig
-        DbSubnetId: !GetAtt DemoCCTNetworkingStack.Outputs.PrivateSubnet1Id
-        DbSecGroupIds: !Join [ ",", [ !GetAtt DemoCCTNetworkingStack.Outputs.BaseSecGroupId ] ]
+        DbSubnetId: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
+        DbSecGroupIds: !Join [ ",", [ !GetAtt NetworkingStack.Outputs.BaseSecGroupId ] ]
         WebServerCloudInitConfig: !Ref WebServerCloudInitConfig
-        WebServerSecGroupIds: !Join [ ",", [ !GetAtt DemoCCTNetworkingStack.Outputs.BaseSecGroupId, !GetAtt DemoCCTNetworkingStack.Outputs.Allow5000SecGroupId ] ]
-        LoadBalancerSubnetIds: !Join [ ",", [ !GetAtt DemoCCTNetworkingStack.Outputs.PublicSubnet1Id, !GetAtt DemoCCTNetworkingStack.Outputs.PublicSubnet2Id ] ]
-        LoadBalancerSecGroupIds: !Join [ ",", [ !GetAtt DemoCCTNetworkingStack.Outputs.BaseSecGroupId, !GetAtt DemoCCTNetworkingStack.Outputs.AllowHTTPSecGroupId ] ]
-        AutoScalingGroupSubnetIds: !Join [ ",", [ !GetAtt DemoCCTNetworkingStack.Outputs.PublicSubnet1Id, !GetAtt DemoCCTNetworkingStack.Outputs.PublicSubnet2Id ] ]
-        Route53HostedZone: !GetAtt DemoCCTNetworkingStack.Outputs.Route53HostedZone
+        WebServerSecGroupIds: !Join [ ",", [ !GetAtt NetworkingStack.Outputs.BaseSecGroupId, !GetAtt NetworkingStack.Outputs.Allow5000SecGroupId ] ]
+        LoadBalancerSubnetIds: !Join [ ",", [ !GetAtt NetworkingStack.Outputs.PublicSubnet1Id, !GetAtt NetworkingStack.Outputs.PublicSubnet2Id ] ]
+        LoadBalancerSecGroupIds: !Join [ ",", [ !GetAtt NetworkingStack.Outputs.BaseSecGroupId, !GetAtt NetworkingStack.Outputs.AllowHTTPSecGroupId ] ]
+        AutoScalingGroupSubnetIds: !Join [ ",", [ !GetAtt NetworkingStack.Outputs.PublicSubnet1Id, !GetAtt NetworkingStack.Outputs.PublicSubnet2Id ] ]
+        Route53HostedZone: !GetAtt NetworkingStack.Outputs.Route53HostedZone
+
+
+Outputs:
+  LoadBalancerDNSName:
+    Description: DNS name of the load balancer
+    Value: !GetAtt ComputingStack.Outputs.LoadBalancerDNSName

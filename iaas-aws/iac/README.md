@@ -63,7 +63,7 @@ In the networking template, we also create a key pair that allows us to SSH into
 
 ```bash
 KEY_PAIR_ID="$(aws ec2 describe-key-pairs \
-    --filters Name=key-name,Values=demo-cct-key-pair \
+    --filters Name=key-name,Values=demo-cct-iaas-key-pair \
     --query KeyPairs[*].KeyPairId \
     --output text)"
 
@@ -79,7 +79,7 @@ Find the public IP associated to the first web-server instance:
 
 ```bash
 WEBSERVER_IP="$(aws ec2 describe-instances \
-    --filters "Name=tag:Name,Values=demo-cct-webserver-instance" \
+    --filters "Name=tag:Name,Values=demo-cct-iaas-webserver-instance" \
     --query "Reservations[0].Instances[0].NetworkInterfaces[0].Association.PublicIp" \
     --output text)"
 ssh -i "demo-key-pair.pem" -o IdentitiesOnly=yes ubuntu@${WEBSERVER_IP}
@@ -92,10 +92,10 @@ ssh -i "demo-key-pair.pem" -o IdentitiesOnly=yes ubuntu@${WEBSERVER_IP}
 We can access the webserver directly from the public IP address, but the optimal access point is the Load balancer, so that it takes care of distributing the load among the registered instances. To retrieve the Load balancer endpoint:
 
 ```bash
-LOAD_BALANCER_ENDPOINT="$(aws elbv2 describe-load-balancers \
-    --names "demo-cct-load-balancer" \
-    --query "LoadBalancers[0].DNSName" \
-    --output text)"
+LOAD_BALANCER_ENDPOINT="$(aws cloudformation describe-stacks \
+    --stack-name demo-cct-iaas \
+    --output text \
+    --query "Stacks[0].Outputs[?OutputKey == 'LoadBalancerDNSName'].OutputValue")"
 echo "$LOAD_BALANCER_ENDPOINT"
 ```
 
@@ -119,4 +119,4 @@ do
 done
 ```
 
-After a while, three instances will be deployed in the target group and the load balancer will distribute requests across all the available instances, in both AZ zones (`PublicSubnet2` and `PublicSubnet2`). If you stop the script, the target group scales in after some time.
+After a while (aws is quite conservative on spawning new instance, it first needs to make sure that is not just a network peak), three instances will be deployed in the target group and the load balancer will distribute requests across all the available instances, in both AZ zones (`PublicSubnet2` and `PublicSubnet2`). If you stop the script, the target group scales in after some time.

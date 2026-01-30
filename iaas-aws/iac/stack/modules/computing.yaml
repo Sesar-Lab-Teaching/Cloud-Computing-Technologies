@@ -47,13 +47,13 @@ Parameters:
 
 Resources:
   # ------------------------ SSH Key Pair
-  DemoCCTKeyPair:
+  KeyPair:
     Type: AWS::EC2::KeyPair
     Properties: 
-      KeyName: demo-cct-key-pair
+      KeyName: demo-cct-iaas-key-pair
 
   # ------------------------ Db Instance
-  DemoCCTDbLaunchTemplate:
+  DbLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateData:
@@ -73,17 +73,17 @@ Resources:
           - ResourceType: instance
             Tags:
               - Key: Name
-                Value: demo-cct-db-instance
+                Value: demo-cct-iaas-db-instance
 
-  DemoCCTDbInstance:
+  DbInstance:
     Type: AWS::EC2::Instance
     Properties:
       LaunchTemplate:
-        LaunchTemplateId: !Ref DemoCCTDbLaunchTemplate
-        Version: !GetAtt DemoCCTDbLaunchTemplate.LatestVersionNumber
+        LaunchTemplateId: !Ref DbLaunchTemplate
+        Version: !GetAtt DbLaunchTemplate.LatestVersionNumber
 
   # ------------------------ DNS record (type A) for db
-  DemoCCTDbRecordA:
+  DbRecordA:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref Route53HostedZone
@@ -91,17 +91,17 @@ Resources:
       Type: A
       TTL: 60
       ResourceRecords:
-        - !GetAtt DemoCCTDbInstance.PrivateIp
+        - !GetAtt DbInstance.PrivateIp
 
   # ------------------------ WebServer
-  DemoCCTWebserverLaunchTemplate:
+  WebserverLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateData:
         # Ubuntu Server 24.04 LTS
         ImageId: ami-0b6c6ebed2801a5cb
         InstanceType: t2.medium
-        KeyName: !Ref DemoCCTKeyPair
+        KeyName: !Ref KeyPair
         Monitoring:
           Enabled: true
         NetworkInterfaces:
@@ -117,19 +117,19 @@ Resources:
           - ResourceType: instance
             Tags:
               - Key: Name
-                Value: demo-cct-webserver-instance
+                Value: demo-cct-iaas-webserver-instance
 
   # ------------------------ Load Balancer
-  DemoCCTLoadBalancer:
+  LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: demo-cct-load-balancer
+      Name: demo-cct-iaas-load-balancer
       Type: application
       Subnets: !Ref LoadBalancerSubnetIds
       SecurityGroups: !Ref LoadBalancerSecGroupIds
 
   # Target groups route requests to individual registered targets, such as EC2 instances, using the protocol and port number that you specify.
-  DemoCCTLoadBalancerTargetGroup:
+  LoadBalancerTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       HealthCheckIntervalSeconds: 15
@@ -145,26 +145,26 @@ Resources:
 
   # A listener is a process that checks for connection requests, using the protocol and port that you configure.
   # The rules that you define for your listeners determine how the load balancer routes requests to the targets that you register
-  DemoCCTLoadBalancerListener:
+  LoadBalancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       DefaultActions:
-        - TargetGroupArn: !Ref DemoCCTLoadBalancerTargetGroup
+        - TargetGroupArn: !Ref LoadBalancerTargetGroup
           Type: forward
-      LoadBalancerArn: !Ref DemoCCTLoadBalancer
+      LoadBalancerArn: !Ref LoadBalancer
       Port: 80
       Protocol: HTTP
 
   # ------------------------ Auto Scaling Group
   # An Auto Scaling group contains a collection of EC2 instances that are treated as a logical grouping for the purposes of automatic scaling and management. 
-  DemoCCTAutoScalingGroup:
+  AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     # The instances in the auto scaling group must already be aware of the dns record for the db
-    DependsOn: DemoCCTDbRecordA
+    DependsOn: DbRecordA
     Properties:
       LaunchTemplate:
-        LaunchTemplateId: !Ref DemoCCTWebserverLaunchTemplate
-        Version: !GetAtt DemoCCTWebserverLaunchTemplate.LatestVersionNumber
+        LaunchTemplateId: !Ref WebserverLaunchTemplate
+        Version: !GetAtt WebserverLaunchTemplate.LatestVersionNumber
       HealthCheckType: ELB
       # Wait for the cloud-init to complete, otherwise the ELB health check would mark it as unhealthy as soon as it is registered in the target group
       HealthCheckGracePeriod: 200
@@ -175,20 +175,26 @@ Resources:
       # require a dependency on VPNGatewayAttachment but the entire stack already depends on the networking stack
       VPCZoneIdentifier: !Ref AutoScalingGroupSubnetIds
       TargetGroupARNs:
-        - !Ref DemoCCTLoadBalancerTargetGroup
+        - !Ref LoadBalancerTargetGroup
 
-  DemoCCTAutoScalingGroupScalingPolicy:
+  AutoScalingGroupScalingPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
-    DependsOn: DemoCCTLoadBalancerListener
+    DependsOn: LoadBalancerListener
     Properties:
-      AutoScalingGroupName: !Ref DemoCCTAutoScalingGroup
+      AutoScalingGroupName: !Ref AutoScalingGroup
       PolicyType: TargetTrackingScaling
       TargetTrackingConfiguration:
         PredefinedMetricSpecification:
           PredefinedMetricType: ALBRequestCountPerTarget
           ResourceLabel: !Join 
             - '/' 
-            - - !GetAtt DemoCCTLoadBalancer.LoadBalancerFullName
-              - !GetAtt DemoCCTLoadBalancerTargetGroup.TargetGroupFullName
+            - - !GetAtt LoadBalancer.LoadBalancerFullName
+              - !GetAtt LoadBalancerTargetGroup.TargetGroupFullName
         # Specifies the optimal average request count per instance during the 1-minute interval
         TargetValue: 10
+
+
+Outputs:
+  LoadBalancerDNSName:
+    Description: DNS name of the load balancer
+    Value: !GetAtt LoadBalancer.DNSName

@@ -4,126 +4,126 @@ Description: Networking resources for the cct demo on iaas
 
 
 Resources:
-  DemoCCTVPC:
+  VPC:
     Type: AWS::EC2::VPC
     Properties:
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      CidrBlock: "10.0.0.0/22"
+      CidrBlock: "10.10.0.0/22"
 
   # ------------------------ 2 public subnets and 2 private subnets
-  DemoCCTPublicSubnet1:
+  PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref DemoCCTVPC
-      CidrBlock: "10.0.0.0/24"
+      VpcId: !Ref VPC
+      CidrBlock: "10.10.0.0/24"
       AvailabilityZone: 
         Fn::Select: 
           - 0
           - Fn::GetAZs: ""
 
-  DemoCCTPublicSubnet2:
+  PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref DemoCCTVPC
-      CidrBlock: "10.0.1.0/24"
+      VpcId: !Ref VPC
+      CidrBlock: "10.10.1.0/24"
       AvailabilityZone: 
         Fn::Select: 
           - 1
           - Fn::GetAZs: ""
 
-  DemoCCTPrivateSubnet1:
+  PrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref DemoCCTVPC
-      CidrBlock: "10.0.2.0/24"
+      VpcId: !Ref VPC
+      CidrBlock: "10.10.2.0/24"
       AvailabilityZone: 
         Fn::Select: 
           - 0
           - Fn::GetAZs: ""
 
-  DemoCCTPrivateSubnet2:
+  PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref DemoCCTVPC
-      CidrBlock: "10.0.3.0/24"
+      VpcId: !Ref VPC
+      CidrBlock: "10.10.3.0/24"
       AvailabilityZone: 
         Fn::Select: 
           - 1
           - Fn::GetAZs: ""
 
   # ------------------------ Internet Gateway
-  DemoCCTInternetGateway:
+  InternetGateway:
     Type: AWS::EC2::InternetGateway
 
-  DemoCCTInternetGatewayAttachment:
+  InternetGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      InternetGatewayId: !Ref DemoCCTInternetGateway
-      VpcId: !Ref DemoCCTVPC
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
 
   # ------------------------ Nat Gateway
-  DemoCCTNatElasticIP:
+  NatElasticIP:
     Type: AWS::EC2::EIP
 
-  DemoCCTNatGateway:
+  NatGateway:
     Type: AWS::EC2::NatGateway
     Properties:
-      AllocationId: !GetAtt DemoCCTNatElasticIP.AllocationId
-      SubnetId: !Ref DemoCCTPublicSubnet1
+      AllocationId: !GetAtt NatElasticIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
 
   # ------------------------ Route table for public subnets
-  DemoCCTPublicRouteTable:
+  PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref DemoCCTVPC
+      VpcId: !Ref VPC
 
-  DemoCCTPublicRouteTableGatewayRoute:
+  PublicRouteTableGatewayRoute:
     Type: AWS::EC2::Route
     Properties:
       DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref DemoCCTInternetGateway
-      RouteTableId: !Ref DemoCCTPublicRouteTable
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTable
 
-  DemoCCTPublicRouteTableSubnet1Association:
+  PublicRouteTableSubnet1Association:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref DemoCCTPublicRouteTable
-      SubnetId: !Ref DemoCCTPublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
 
-  DemoCCTPublicRouteTableSubnet2Association:
+  PublicRouteTableSubnet2Association:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref DemoCCTPublicRouteTable
-      SubnetId: !Ref DemoCCTPublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
 
   # ------------------------ Route table for private subnets
-  DemoCCTPrivateRouteTable:
+  PrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref DemoCCTVPC
+      VpcId: !Ref VPC
 
-  DemoCCTPrivateRouteTableNatGatewayRoute:
+  PrivateRouteTableNatGatewayRoute:
     Type: AWS::EC2::Route
     Properties:
-      RouteTableId: !Ref DemoCCTPrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTable
       DestinationCidrBlock: '0.0.0.0/0'
-      NatGatewayId: !Ref DemoCCTNatGateway
+      NatGatewayId: !Ref NatGateway
 
-  DemoCCTPrivateRouteTableSubnet1Association:
+  PrivateRouteTableSubnet1Association:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref DemoCCTPrivateRouteTable
-      SubnetId: !Ref DemoCCTPrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet1
 
-  DemoCCTPrivateRouteTableSubnet2Association:
+  PrivateRouteTableSubnet2Association:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref DemoCCTPrivateRouteTable
-      SubnetId: !Ref DemoCCTPrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet2
 
   # ------------------------ DNS with Route53
-  DemoCCTCustomDNS: 
+  CustomDNS: 
     Type: AWS::Route53::HostedZone
     Properties:
       Name: internal.democct
@@ -131,16 +131,16 @@ Resources:
         Comment: Hosted zone for CCT demo
       VPCs: 
         - 
-          VPCId: !Ref DemoCCTVPC
+          VPCId: !Ref VPC
           VPCRegion: !Ref 'AWS::Region'
 
   # ------------------------ Security groups
-  DemoCCTBaseSecGroup:
+  BaseSecGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: DemoCCTBaseSecGroup
+      GroupName: demo-cct-iaas-base-sec-group
       GroupDescription: Allow ping and SSH connections
-      VpcId: !Ref DemoCCTVPC
+      VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
@@ -151,34 +151,34 @@ Resources:
           ToPort: -1
           CidrIp: 0.0.0.0/0
 
-  DemoCCTBaseSecGroupRuleAllowFromSameSecGroup:
+  BaseSecGroupRuleAllowFromSameSecGroup:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       Description: Allow connections from same Security group
-      GroupId: !Ref DemoCCTBaseSecGroup
+      GroupId: !Ref BaseSecGroup
       FromPort: 0
       IpProtocol: tcp
       ToPort: 65535
-      SourceSecurityGroupId: !Ref DemoCCTBaseSecGroup
+      SourceSecurityGroupId: !Ref BaseSecGroup
 
-  DemoCCTSecGroupAllowTCP5000Port:
+  SecGroupAllowTCP5000Port:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: DemoCCTSecGroupAllowTCP5000Port
+      GroupName: demo-cct-iaas-sec-group-allow-tcp-5000
       GroupDescription: Allow TCP connections to port 5000
-      VpcId: !Ref DemoCCTVPC
+      VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5000
           ToPort: 5000
           CidrIp: 0.0.0.0/0
 
-  DemoCCTSecGroupAllowHTTPPort:
+  SecGroupAllowHTTPPort:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: DemoCCTSecGroupAllowHTTPPort
+      GroupName: demo-cct-iaas-sec-group-allow-http
       GroupDescription: Allow http connections
-      VpcId: !Ref DemoCCTVPC
+      VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -188,47 +188,47 @@ Resources:
   # ------------------------ EC2 Instance connect
   # necessary to connect to an instance, without requiring the instance to be in a public subnet
 
-  DemoCCTEC2InstanceConnect:
+  EC2InstanceConnect:
     Type: AWS::EC2::InstanceConnectEndpoint
     Properties:
-      SubnetId: !Ref DemoCCTPrivateSubnet1
+      SubnetId: !Ref PrivateSubnet1
       SecurityGroupIds:
-        - !Ref DemoCCTBaseSecGroup
+        - !Ref BaseSecGroup
 
 
 Outputs:
   VpcId:
     Description: "The ID of the VPC"
-    Value: !Ref DemoCCTVPC
+    Value: !Ref VPC
 
   PublicSubnet1Id:
     Description: "The ID of the Public Subnet 1"
-    Value: !Ref DemoCCTPublicSubnet1
+    Value: !Ref PublicSubnet1
 
   PublicSubnet2Id:
     Description: "The ID of the Public Subnet 2"
-    Value: !Ref DemoCCTPublicSubnet2
+    Value: !Ref PublicSubnet2
 
   PrivateSubnet1Id:
     Description: "The ID of the Private Subnet 1"
-    Value: !Ref DemoCCTPrivateSubnet1
+    Value: !Ref PrivateSubnet1
 
   PrivateSubnet2Id:
     Description: "The ID of the Private Subnet 2"
-    Value: !Ref DemoCCTPrivateSubnet2
+    Value: !Ref PrivateSubnet2
 
   BaseSecGroupId:
     Description: "The ID of the Base Security Group"
-    Value: !Ref DemoCCTBaseSecGroup
+    Value: !Ref BaseSecGroup
 
   Allow5000SecGroupId:
     Description: "The ID of the Security Group that allows TCP conns to 5000"
-    Value: !Ref DemoCCTSecGroupAllowTCP5000Port
+    Value: !Ref SecGroupAllowTCP5000Port
 
   AllowHTTPSecGroupId:
     Description: "The ID of the Security Group that allows Http conns"
-    Value: !Ref DemoCCTSecGroupAllowHTTPPort
+    Value: !Ref SecGroupAllowHTTPPort
 
   Route53HostedZone:
     Description: "The ID of the Route53 Hosted Zone"
-    Value: !Ref DemoCCTCustomDNS
+    Value: !Ref CustomDNS
