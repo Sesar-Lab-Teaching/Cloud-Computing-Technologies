@@ -42,6 +42,7 @@ Resources:
       Target: !Sub 'integrations/${GetDataLambdaIntegration}'
 
   # ------------------------ Deployment
+  # A deployment is a snapshot of the API configuration. You must create a deployment to make your API callable
   ApiDeployment:
     Type: AWS::ApiGatewayV2::Deployment
     DependsOn:
@@ -50,6 +51,8 @@ Resources:
       Description: API Deployment for Demo CCT on PaaS
       ApiId: !Ref HTTPApi
 
+  # A stage is a named reference to a deployment. Multiple stages can reference the same deployment, but each stage (prod, stage) is configured independently
+  # and possibly with different variable.
   ApiStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
