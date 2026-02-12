@@ -2,7 +2,7 @@ services:
   db:
     image: mysql:8.4.0
     env_file:
-      - .env
+      - ./db/.env
     healthcheck:
       test: mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER --password=$$MYSQL_PASSWORD
       start_period: 5s
@@ -11,6 +11,9 @@ services:
       retries: 8
     volumes:
       - mysql_data:/var/lib/mysql
+    secrets:
+      - db_password_file_secret
+      - db_root_password_file_secret
 
   seeder:
     image: mysql:8.4.0
@@ -18,16 +21,18 @@ services:
       [
         "bash",
         "-c",
-        "mysql --host=$$MYSQL_HOST -u $$MYSQL_USER --password=$$MYSQL_PASSWORD -D $$MYSQL_DATABASE -e 'source /seed.sql'"
+        "mysql --host=$$MYSQL_HOST -u $$MYSQL_USER --password=\"$$(cat $$MYSQL_PASSWORD_FILE)\" -D $$MYSQL_DATABASE -e 'source /seed.sql'"
       ]
     env_file:
-      - .env
+      - ./db-seeder/.env
     restart: on-failure
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ../sqldb/seed.sql:/seed.sql
+    secrets:
+      - db_password_file_secret
 
   app:
     build:
@@ -36,9 +41,11 @@ services:
     labels:
       autoheal: true
     env_file:
-      - .env
+      - ./webserver/.env
     ports:
       - "5000:80"
+    secrets:
+      - db_password_file_secret
 
   autoheal:
     environment:
@@ -52,3 +59,9 @@ services:
 
 volumes:
   mysql_data:
+
+secrets:
+  db_password_file_secret:
+    file: ./secrets/db_password.secret
+  db_root_password_file_secret:
+    file: ./secrets/db_root_password.secret

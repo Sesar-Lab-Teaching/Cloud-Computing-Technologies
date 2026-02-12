@@ -142,4 +142,4 @@ ENV/
 .mypy_cache/
 
 # custom
-provision-webserver.yaml
+requirements.txt
