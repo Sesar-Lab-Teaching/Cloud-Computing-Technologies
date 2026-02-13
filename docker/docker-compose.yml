@@ -30,14 +30,15 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ../sqldb/seed.sql:/seed.sql
+      - ../sqldb/seed.sql:/seed.sql:ro
     secrets:
       - db_password_file_secret
 
   app:
     build:
+      args:
+        - PYTHON_VERSION=3.12
       context: ../webserver
-    image: web-server
     labels:
       autoheal: true
     env_file:

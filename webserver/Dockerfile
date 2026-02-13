@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 
-FROM python:3.12
+ARG PYTHON_VERSION=3.12
+FROM python:${PYTHON_VERSION}
 
 RUN <<EOF
     apt-get update

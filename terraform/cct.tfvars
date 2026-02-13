@@ -1,0 +1,5 @@
+db_image         = "mysql:8.4.0"
+db_user          = "cct"
+db_password      = "cct-psw"
+db_root_password = "cct-psw-root"
+db_database      = "cct-db"
