@@ -4,7 +4,7 @@ services:
     env_file:
       - ./db/.env
     healthcheck:
-      test: mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER --password=$$MYSQL_PASSWORD
+      test: mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER --password="$$(cat $$MYSQL_PASSWORD_FILE)"
       start_period: 5s
       interval: 3s
       timeout: 5s

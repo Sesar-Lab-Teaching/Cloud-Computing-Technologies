@@ -46,10 +46,10 @@ Then we can see the logs for the webserver:
 docker compose -p cct logs app
 ```
 
-And delete the compose with:
+And delete the compose (together with created volumes) with:
 
 ```bash
-docker compose -p cct down
+docker compose -p cct down -v
 ```
 
 ### Networking
