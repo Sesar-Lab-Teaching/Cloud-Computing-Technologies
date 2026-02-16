@@ -1,22 +1,21 @@
 x-common-env: &shared-env
-  MYSQL_USER: cct1
-  MYSQL_DATABASE: cct1
-  MYSQL_PORT: 3306
-  MYSQL_PASSWORD_FILE: /run/secrets/mysql-password
+  MYSQL_USER: cct
+  MYSQL_PASSWORD_FILE: /run/secrets/db_password_file_secret
+  MYSQL_DATABASE: cct
 
 services:
   db:
     image: mysql:8.4.0
     environment:
       <<: *shared-env
-      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql-password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password_file_secret
     healthcheck:
       test:
         [
           "CMD-SHELL",
           "sh",
           "-c",
-          "mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER --password=$$(cat /run/secrets/mysql-password)"
+          "mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER --password=$$(cat $$MYSQL_PASSWORD_FILE)"
         ]
       start_period: 5s
       interval: 3s
@@ -25,7 +24,8 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     secrets:
-      - mysql-password
+      - db_password_file_secret
+      - db_root_password_file_secret
 
   seeder:
     image: mysql:8.4.0
@@ -35,12 +35,12 @@ services:
       - |
         mysqladmin ping -h $$MYSQL_HOST \
           -u $$MYSQL_USER \
-          --password=$$(< /run/secrets/mysql-password) && \
+          --password=$$(< $$MYSQL_PASSWORD_FILE) && \
         mysql --host=$$MYSQL_HOST \
           -u $$MYSQL_USER \
-          --password=$$(< /run/secrets/mysql-password) \
+          --password=$$(< $$MYSQL_PASSWORD_FILE) \
           -D $$MYSQL_DATABASE \
-          -e 'source /db-seed-sql' || \
+          -e 'source /db_seed_sql' || \
         exit 1
     environment:
       <<: *shared-env
@@ -55,12 +55,12 @@ services:
     depends_on:
       - db
     secrets:
-      - mysql-password
+      - db_password_file_secret
     configs:
-      - db-seed-sql
+      - db_seed_sql
 
   app:
-    image: "maluz/webserver-cct-demo:1.0"
+    image: "maluz/webserver-cct-demo:latest"
     deploy:
       mode: replicated
       replicas: 2
@@ -69,18 +69,21 @@ services:
     environment:
       <<: *shared-env
       MYSQL_HOST: db
+      MYSQL_PORT: 3306
     ports:
       - "5000:80"
     secrets:
-      - mysql-password
+      - db_password_file_secret
 
 secrets:
-  mysql-password:
-    file: ./mysql_pwd.secret
+  db_password_file_secret:
+    file: ./secrets/db_password.secret
+  db_root_password_file_secret:
+    file: ./secrets/db_root_password.secret
 
 configs:
-  db-seed-sql:
-    file: ./seed.sql
+  db_seed_sql:
+    file: ../sqldb/seed.sql
 
 volumes:
   mysql_data:

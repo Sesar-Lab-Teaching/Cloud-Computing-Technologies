@@ -21,21 +21,22 @@ In the following sections, each docker command(s) will be associated to a node w
 
 [Download and install Vagrant](https://developer.hashicorp.com/vagrant/downloads), next run this:
 
-```
+```bash
 cd vagrant_setup
+vagrant validate
 vagrant up
 ```
 
-You will end up with three different nodes: the manager `m1` and two workers `w1` and `w2`. Then, create 3 `docker contexts` to easily connect to these virtual machines without SSHing every time:
+You will end up with three different nodes: the manager `manager1` and two workers `worker1` and `worker2`. Then, create 3 `docker contexts` to easily connect to these virtual machines without SSHing every time:
 
-```
+```bash
 mkdir -p ~/.ssh/config.d
 
-# If you already include `config.d`, then skip the `sed` command
-sed -i "1 i \Include config.d/*\n" ~/.ssh/config
+# WARNING: It modifies teh ~/.ssh/config file
+echo "Include config.d/*" >> ~/.ssh/config
 
-vagrant ssh-config m1 w1 w2 > ~/.ssh/config.d/swarm_config
-for vm in m1 w1 w2; do
+vagrant ssh-config manager1 worker1 worker2 > ~/.ssh/config.d/cct_swarm_config
+for vm in manager1 worker1 worker2; do
   docker context create \
     --docker "host=ssh://$vm" \
     $vm
@@ -44,8 +45,18 @@ done
 
 Docker contexts are convenient to send `docker` commands to remote hosts (or local VMs in this case). In the following sections, each docker command(s) will be associated to a node where the command must be executed. For example, when node is `worker1`, then change the context with:
 
+```bash
+docker context use worker1
 ```
-docker context use w1
+
+## Cleanup
+
+To destroy the vagrant instances and remove the docker contexts:
+
+```bash
+vagrant destroy
+rm ~/.ssh/config.d/cct_swarm_config
+docker context rm manager1 worker1 worker2
 ```
 
 ---
@@ -54,7 +65,7 @@ docker context use w1
 
 Initially, the swarm mode is disabled. To enable it, we need to add the current node to the swarm cluster. The first added node automatically becomes a manager:
 
-```
+```bash
 # manager1
 docker swarm init
 ```
@@ -74,36 +85,37 @@ If the node has multiple network interfaces, then we need to specify which one `
 Now that we have a cluster (with a single manager), retrieve the token to add other nodes either as manager or as workers:
 
 - **Manager**:
-    ```
+    ```bash
     # manager1
     MANAGER_TOKEN="$(docker swarm join-token manager -q)"
     ```
 - **Worker**:
-    ```
+    ```bash
     # manager1
     WORKER_TOKEN="$(docker swarm join-token worker -q)"
     ```
 
 Now the worker nodes can join the cluster using the token:
 
-```
+```bash
 # manager1
 MANAGER_ENDPOINT="$(docker node inspect self --format '{{ .ManagerStatus.Addr }}')"
 
 # worker1 & worker2
+docker context use worker1
 docker swarm join --token "$WORKER_TOKEN" "$MANAGER_ENDPOINT"
 ```
 
 To check whether the nodes have been correctly added, run:
 
-```
+```bash
 # manager
 docker node ls
 ```
 
 Or run the container with image `dockersamples/visualizer` to see the current status of a docker swarm from Web UI:
 
-```
+```bash
 # manager
 docker service create \
     --name=viz \
@@ -123,14 +135,14 @@ If we join a new manager node, it is added as *Reachable*, whereas the first one
 
 Nodes can be promoted to managers, or demoted to workers. To promote a worker to manager:
 
-```
+```bash
 # manager
 docker node promote w1
 ```
 
 To demote a manager to worker:
 
-```
+```bash
 # manager
 docker node demote your_manager_node
 ```
@@ -159,7 +171,7 @@ Before using services, it is important to understand the [difference between con
 
 To create a new service:
 
-```
+```bash
 docker service create [OPTIONS] IMAGE [COMMAND] [ARG...]
 ```
 
@@ -167,13 +179,13 @@ The options and structure of a service creation is very similar to the run of a 
 
 A service will be deployed on one of your node, either a manager or a worker. To find out where it is deployed now and in the past:
 
-```
+```bash
 docker service ps your_service
 ```
 
 If you service is replicated, then each replica name is prepended by `.{replica_id}`. For example, if there are 3 replicas for a task called `example`, then the replica names are `example.1`, `example.2`, and `example.3`. If you want to redeploy it without any changes:
 
-```
+```bash
 docker service update --force your_service
 ```
 
@@ -181,7 +193,7 @@ You can still list containers running on a node with `docker container ps` and t
 
 We can set some constraints on the node where tasks run, like the node role:
 
-```
+```bash
 # manager
 docker service create \
     --constraint node.role==manager \
@@ -198,13 +210,13 @@ Just like a container can be defined inside a Docker-compose, a service can be d
 
 To create a new stack:
 
-```
+```bash
 docker stack deploy -c stack_file.yml stack_name
 ```
 
 To get the current stack status:
 
-```
+```bash
 docker stack ps stack_name
 ```
 
@@ -222,7 +234,7 @@ Each service also has a Virtual IP associated, which we should use instead of th
 
 To delete a stack:
 
-```
+```bash
 docker stack rm stack_name
 ```
 
@@ -252,26 +264,60 @@ Therefore, when you deploy a service with replicated mode and specify a named vo
 
 ---
 
-## Deploying the Bank Scenario
+## Deploying the reference Scenario
 
-For the Bank scenario, we need 1 MySQL container and 2 instances (replicas) of the WebServer. First, we need to copy on the manager node the following files:
+For the reference scenario, we need 1 db container and 2 replicas of the WebServer. 
 
-- `docker-compose.yml`
-- `mysql_pwd.secret`
-- `seed.sql`
+**Requirement**: the webserver image must be available in a docker registry. For simplicity, it has been pushed on DockerHub at the repository `maluz/webserver-cct-demo`. 
 
-If you are using Vagrant, you just need to copy them in the same folder where the `Vagrantfile` is placed; that folder is mounted on the `/vagrant` folder in the guest machine.
+With Vagrant, two folders are shared: this folder and `../sqldb`, which contains the seeding script for the db. In order to deploy the Docker stack:
 
 ```bash
-mkdir -p vagrant_setup/deploy
-cp ./docker-compose.yml ./vagrant_setup/deploy/docker-compose.yml
-cp ./mysql_pwd.secret ./vagrant_setup/deploy/mysql_pwd.secret
-cp ../sqldb/seed.sql ./vagrant_setup/deploy/seed.sql
+# can be any node
+vagrant ssh manager1
+
+# inside the swarm node, run
+cd /deploy
 ```
 
-With Play with Docker, you may need to copy them using `sftp` for example (or just copy & paste the content file by file).
+The `docker-compose.yml` file contains the necessary instructions to provision the containers (including the replicas). A docker compose file for Swarm complies with a different Compose Spec, so some properties are limited, and new ones are availables. The most representative one is `deploy`: it accepts a map with the configurations for the replica, deployment mode, restart policy, etc.
 
-The `docker-compose.yml` file contains the necessary instructions to provision the containers (including the replicas). A docker compose file for `docker stack` usually includes a further command: the `deploy`. It accepts a map with the configurations for the replica, deployment mode, restart policy, etc.
+To deploy the stack:
+
+```bash
+docker stack deploy -c docker-compose.yml cct-demo
+```
+
+To monitor the deployment you can:
+
+- use the `ps` command: `docker stack ps --no-trunc cct-demo`.
+- `docker stack services cct-demo` shows an overview of the current state of the deployment
+
+To monitor the single services you can run `docker service inspect cct-demo_app` and `docker service logs cct-demo_app`.
+
+To destroy the stack:
+
+```bash
+docker stack rm cct-demo
+```
+
+---
+
+### Testing the webserver
+
+The services should be up and running, test it by invoking the webserver endpoint `http://192.168.56.(201|211|212):5000`. The *Hostname* field in the HTML page should change on every page reload: this is the effect of the Swarm Load balancer that applies a round robin policy on the nodes hosting the webserver tasks.
+
+Calling the `/make-unhealthy` API makes a task fail and, after the being marked as unhealthy, it is replaced by a new task, i.e. a new container is spawned. The unhealthy container is only shut down, instead of being completely removed. In this way, you can troubleshoot the cause of failure.
+
+### Scaling the Web server
+
+To scale the webserver, we just need to update the `docker-compose.yml` file and run the same `docker stack deploy` command and specify the **same** stack name. In this way, Docker Swarm recognizes that you want to update the deploy and creates a new instance of the webserver container on one of the available nodes.
+
+---
+
+### Creating your own Docker registry
+
+⚠️⚠️⚠️ Not maintained ⚠️⚠️⚠️
 
 Since you cannot create on-the-fly images in the Docker-compose file (so the web application image must be available on a Docker registry), we need to create a local Docker registry in the manager node and push the image to it:
 
@@ -304,35 +350,3 @@ docker push "$MANAGER_IP:5001/bank-app:1.0"
 ```
 
 Alternatively, you can push the image on a public registry like Docker Hub and use it with `{your_username}/{image_name}:{tag}`.
-
-Next ssh into the manager VM and deploy the stack:
-
-```bash
-cd /vagrant/deploy
-docker stack deploy -c docker-compose.yml cct-demo
-```
-
-To monitor the deployment you can:
-
-- use the `ps` command: `docker stack ps --no-trunc cct-demo`.
-- `docker stack services cct-demo` shows an overview of the current state of the deployment
-
-To monitor the single services you can run `docker service inspect cct-demo_app` and `docker service logs cct-demo_app`.
-
-To destroy the stack:
-
-```bash
-docker stack rm cct-demo
-```
-
----
-
-### Testing the webserver
-
-The services should be up and running, test it by invoking the webserver endpoint `http://192.168.56.(201|211|212):5000`. The *Hostname* field in the HTML page should change on every page reload: this is the effect of the Swarm Load balancer that applies a round robin policy on the nodes hosting the webserver tasks.
-
-Calling the `/make-unhealthy` API makes a task fail and, after the being marked as unhealthy, it is replaced by a new task, i.e. a new container is spawned. The unhealthy container is only shut down, instead of being completely removed. In this way, you can troubleshoot the cause of failure.
-
-### Scaling the Web server
-
-To scale the webserver, we just need to update the `docker-compose.yml` file and run the same `docker stack deploy` command and specify the **same** stack name. In this way, Docker Swarm recognizes that you want to update the deploy and creates a new instance of the webserver container on one of the available nodes.

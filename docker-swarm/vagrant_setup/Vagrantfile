@@ -1,37 +1,46 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+MANAGER_NUM = 1
+WORKER_NUM = 2
+
 Vagrant.configure('2') do |config|
-    config.vm.box = 'hashicorp/bionic64'
+    config.vm.box = 'cloud-image/ubuntu-24.04'
 
     # define manager nodes
-    (1..1).each do |number|
-        config.vm.define "m#{number}" do |node|
-          node.vm.network 'private_network', ip: "192.168.56.20#{number}"
-          node.vm.network 'forwarded_port', id: 'ssh', host: "820#{number}", guest: "22"
-          node.vm.hostname = "m#{number}"
+    (1..MANAGER_NUM).each do |number|
+        config.vm.define "manager#{number}" do |node|
+            node.vm.network 'private_network', ip: "192.168.56.20#{number}"
+            node.vm.network 'forwarded_port', id: 'ssh', host: "820#{number}", guest: "22"
+            node.vm.hostname = "manager#{number}"
+            node.vm.disk :disk, size: '20GB', primary: true
+            node.vm.synced_folder "..", "/deploy"
+            node.vm.synced_folder "../../sqldb", "/sqldb"
         end
     end
 
     # define worker nodes
-    (1..2).each do |number|
-        config.vm.define "w#{number}" do |node|
-          node.vm.network 'private_network', ip: "192.168.56.21#{number}"
-          node.vm.network 'forwarded_port', id: 'ssh', host: "821#{number}", guest: "22"
-          node.vm.hostname = "w#{number}"
+    (1..WORKER_NUM).each do |number|
+        config.vm.define "worker#{number}" do |node|
+            node.vm.network 'private_network', ip: "192.168.56.21#{number}"
+            node.vm.network 'forwarded_port', id: 'ssh', host: "821#{number}", guest: "22"
+            node.vm.hostname = "worker#{number}"
+            node.vm.disk :disk, size: '20GB', primary: true
+            node.vm.synced_folder "..", "/deploy"
+            node.vm.synced_folder "../../sqldb", "/sqldb"
         end
     end
 
     # tweak vm settings to optimize for your machine:
     config.vm.provider 'virtualbox' do |vb|
-        vb.memory = '1024'
-        vb.cpus = 1
+        vb.memory = '2048'
+        vb.cpus = 2
     end
 
     # install docker:
     config.vm.provision 'docker'
   
-  # (optional) tools for demos:
+# (optional) tools for demos:
 =begin
     config.vm.provision 'shell', inline: <<-SHELL
     sudo apt-get install -y tree bat jq
