@@ -165,6 +165,10 @@ Before using services, it is important to understand the [difference between con
 
 > The underlying logic of Docker's Swarm mode is a general purpose scheduler and orchestrator. **The service and task abstractions themselves are unaware of the containers they implement**. Hypothetically, you could implement other types of tasks such as virtual machine tasks or non-containerized process tasks. The scheduler and orchestrator are agnostic about the type of the task. However, the current version of Docker only supports container tasks.
 
+![How services work](https://docs.docker.com/engine/swarm/images/services-diagram.webp)
+
+![Cluster components](https://docs.docker.com/engine/swarm/images/service-lifecycle.webp)
+
 ---
 
 ## Service
@@ -248,7 +252,7 @@ Configs and secrets are special types of volumes. As for [secrets](https://docs.
 
 > When you grant a newly-created or running service access to a secret, the decrypted secret is mounted into the container in an in-memory filesystem. The location of the mount point within the container defaults to `/run/secrets/<secret_name>` in Linux containers, or `C:\ProgramData\Docker\secrets` in Windows containers. You can also specify a custom location.
 
-Regarding [configs]():
+Regarding [configs](https://docs.docker.com/engine/swarm/configs/):
 
 > Docker swarm service configs allow you to store non-sensitive information, such as configuration files, outside a service's image or running containers. This allows you to keep your images as generic as possible, without the need to bind-mount configuration files into the containers or use environment variables.
 

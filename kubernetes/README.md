@@ -12,7 +12,7 @@ Sources:
 The easiest way to locally create a Kubernetes cluster is through [Minikube](https://minikube.sigs.k8s.io/docs/start/). For this guide, we are going to use a multi-node cluster:
 
 ```bash
-minikube start --nodes 2 -p kube-demo
+minikube start --nodes 2 -p kube-demo --addons storage-provisioner,default-storageclass,metrics-server
 # Run the next command if you have not installed `kubectl` package
 alias kubectl="minikube -p kube-demo kubectl --"
 ```
@@ -27,13 +27,13 @@ minikube profile list
 
 Should display a similar table:
 
-|  Profile  | VM Driver | Runtime |      IP      | Port | Version | Status  | Nodes | Active |
+|  Profile  | Driver    | Runtime |      IP      | Port | Version | Status  | Nodes | Active |
 | --------- | --------- | ------- | ------------ | ---- | ------- | ------- | ----- | ------ |
-| kube-demo | docker    | docker  | 192.168.49.2 | 8443 | v1.28.3 | Running |     2 |        |
+| kube-demo | docker    | docker  | 192.168.49.2 | 8443 | v1.28.3 | OK      |     2 |        |
 
 To examine the status of the cluster (and its nodes):
 
-```
+```bash
 minikube status -p kube-demo
 ```
 
@@ -43,12 +43,14 @@ minikube status -p kube-demo
 
 A Kubernetes cluster consists of two types of resources:
 
-- The Control Plane coordinates the cluster: the Control Plane coordinates all activities in your cluster, such as scheduling applications, maintaining applications' desired state, scaling applications, and rolling out new updates.
+- The Control Plane coordinates the cluster: the Control Plane coordinates all activities in your cluster, such as scheduling applications, maintaining applications' desired state, scaling applications, and rolling out new updates. An important component is the Controller manager, which embeds the core [controllers](https://kubernetes.io/docs/concepts/architecture/controller/) that align the current state of your resources with the desired state.
 - Nodes are the workers that run applications: a node is a VM or a physical computer that serves as a worker machine in a Kubernetes cluster. Every Kubernetes Node runs at least:
     * Kubelet, a process responsible for communication between the Kubernetes control plane and the Node; it manages the Pods and the containers running on a machine.
     * A container runtime (like Docker) responsible for pulling the container image from a registry, unpacking the container, and running the application.
 
 When you deploy applications on Kubernetes, you tell the control plane to start the application containers. The control plane schedules the containers to run on the cluster's nodes. Node-level components, such as the kubelet, communicate with the control plane using the Kubernetes API, which the control plane exposes. End users can also use the Kubernetes API directly to interact with the cluster.
+
+![k8s-architecture](https://kubernetes.io/images/docs/components-of-kubernetes.svg)
 
 ---
 
@@ -174,11 +176,11 @@ There are situations where you want to fail a Job after some amount of retries d
 
 ---
 
-## Scenario Deployment
+## Deploying the reference scenario
 
 To locally create a K8s cluster, install Minikube and follow the [Setup](#setup).
 
-Then push the webserver image to a public registry (or use the `maluz/webserver-cct-demo:1.0`) so that each node can easily pull the image.
+Then push the webserver image to a public registry (or use the `maluz/webserver-cct-demo:latest`) so that each node can easily pull the image.
 
 To deploy the bank scenario, run:
 
@@ -195,10 +197,10 @@ kubectl get deployment
 To get the events and the current statys of the deployment, run
 
 ```bash
-kubectl describe deployment webserver-deployment
+kubectl describe deployment webserver
 ```
 
-where `webserver-deployment` is the resource name for our deployment. Instead, to retrieve the node info and the pod that it hosts, then
+where `webserver` is the resource name for our deployment. Instead, to retrieve the node info and the pod that it hosts, then
 
 ```bash
 kubectl describe node kube-demo
@@ -213,7 +215,7 @@ kubectl get pods
 Then, you can inspect the logs (and eventually troubleshoot):
 
 ```bash
-kubectl logs webserver-deployment-<deployment_id>-<pod_id>
+kubectl logs webserver-<deployment_id>-<pod_id>
 ```
 
 Finally, the last resource type we have to analyze is service:
@@ -225,24 +227,28 @@ kubectl get service
 And the output will be similar to:
 
 ```
-NAME                TYPE           CLUSTER-IP       EXTERNAL-IP      PORT(S)        AGE
-mysql-service       ClusterIP      None             <none>        3306/TCP       6m37s
-webserver-service   LoadBalancer   10.100.224.10    <pending>     80:30533/TCP   6m37s
+NAME        TYPE           CLUSTER-IP       EXTERNAL-IP      PORT(S)        AGE
+mysql       ClusterIP      None             <none>           3306/TCP       6m37s
+webserver   LoadBalancer   10.100.224.10    <pending>        80:30533/TCP   6m37s
 ```
 
-While the `mysql-server` is a `ClusterIP` and its virtual IP addresses is exposed internally, the `webserver-service` is a `LoadBalancer` and needs an external IP from the pool of available IPs. If you are using Minikube, you will see the status `<pending>` because the host tunneling is not enabled yet. To reserve a host IP address for the Minikube cluster, run:
+While the `mysql` is a `ClusterIP` and its virtual IP addresses is exposed internally, the `webserver` is a `LoadBalancer` and needs an external IP from the pool of available IPs. If you are using Minikube, you will see the status `<pending>` because the host tunneling is not enabled yet. To reserve a host IP address for the Minikube cluster, run:
 
 ```bash
 # to run in a new terminal
 minikube -p kube-demo tunnel
 ```
 
-The `Status.route` field shows the mapped IP address. If you execute again `kubectl get service`, the External IP is now available. To test the webserver, use the service port 
+The `Status.route` field shows the mapped IP address. If you execute again `kubectl get service`, the External IP is now available. To test the webserver, use the service port.
 
 ```
-webserver-service   LoadBalancer   10.104.20.24   10.104.20.24   80:31137/TCP
-                                                                 ^^   
+webserver   LoadBalancer   10.104.20.24   10.104.20.24   80:31137/TCP
+                                                            ^^^^^   
 ```
+
+Depending on the driver you are using to run Minikube, you might be able to access the ClusterIP address without tunnelling. With docker, it is possible because when the environment is deployed, a new entry is added to `ip route`, something similar to `10.96.0.0/12 via 192.168.49.2 dev br-7e9cfd801a37`. If a VM technology had been used as driver, this lack of isolation would not be possible.
+
+Before cleaning up, you can see a visual representation of deployed resources with `minikube dashboard`.
 
 Finally to delete all the created resources:
 
@@ -271,6 +277,7 @@ For the webserver we have specified a readiness probe, which determines whether 
 The autoscaling component scales out/in pod depending on the monitored metrics, which are exposed by a metrics server. To enable its addon on Minikube, run
 
 ```bash
+# if not enabled with `minikube start --addons` as indicated above
 minikube addons -p kube-demo enable metrics-server
 # restart Minikube
 minikube start -p kube-demo
@@ -279,10 +286,13 @@ minikube start -p kube-demo
 Repeatedly call the main API on the webserver:
 
 ```bash
-while true
+MINIKUBE_CLUSTER_IP="$(minikube ip -p kube-demo)"
+WEBSERVER_SERVICE_PORT="$(kubectl get svc/webserver -o jsonpath='{ .spec.ports[0].nodePort }')"
+for ((i=0; ;i++))
 do
-    curl -s http://10.100.224.10 > /dev/null
-    echo "request sent"
+    echo "Request $i sent"
+    curl -s --output /dev/null "http://$MINIKUBE_CLUSTER_IP:$WEBSERVER_SERVICE_PORT"
+    echo "Request $i completed"
 done
 ```
 
@@ -290,7 +300,7 @@ And monitor the resource usage with:
 
 ```bash
 kubectl describe horizontalpodautoscalers.autoscaling webserver-autoscaler
-watch -n 3 kubectl top pod webserver-deployment-cb9585bf5-hgfj2
+watch -n 3 kubectl top pod webserver-cb9585bf5-hgfj2
 ```
 
 When the average CPU utilization gets above 10%, autoscaler spawns a new replica in the deployment set.

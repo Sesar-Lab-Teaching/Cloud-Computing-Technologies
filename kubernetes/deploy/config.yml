@@ -3,9 +3,10 @@ kind: ConfigMap
 metadata:
   name: mysql-seed-script
   labels:
-    app.kubernetes.io/name: mysql-seed-script
-    app.kubernetes.io/component: seed-script
-    app.kubernetes.io/part-of: database
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/instance: mysql-prod
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: cct-demo
 data:
   seeding_script: |
     CREATE TABLE IF NOT EXISTS accounts (
@@ -29,9 +30,10 @@ kind: ConfigMap
 metadata:
   name: mysql-configs
   labels:
-    app.kubernetes.io/name: mysql-configs
-    app.kubernetes.io/component: configs
-    app.kubernetes.io/part-of: database
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/instance: mysql-prod
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: cct-demo
 data:
   MYSQL_USER: cct1
   MYSQL_DATABASE: cct1
@@ -42,9 +44,10 @@ kind: Secret
 metadata:
   name: mysql-credentials
   labels:
-    app.kubernetes.io/name: mysql-credentials
-    app.kubernetes.io/component: credentials
-    app.kubernetes.io/part-of: database
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/instance: mysql-prod
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: cct-demo
 data:
   MYSQL_PASSWORD: bXlzcWxwYXNzd29yZA==
   MYSQL_ROOT_PASSWORD: bXlzcWxyb290cGFzc3dvcmQ=

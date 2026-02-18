@@ -1,11 +1,12 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: mysql-service
+  name: mysql
   labels:
-    app.kubernetes.io/name: mysql-service
-    app.kubernetes.io/component: service
-    app.kubernetes.io/part-of: database
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/instance: mysql-prod
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: cct-demo
 spec:
   ports:
     - port: 3306
@@ -14,32 +15,36 @@ spec:
   clusterIP: None
   type: ClusterIP
   selector:
-    app.kubernetes.io/name: mysql-pod
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/instance: mysql-prod
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: mysql-statefulset
+  name: mysql
   labels:
-    app.kubernetes.io/name: mysql-statefulset
-    app.kubernetes.io/component: instance-set
-    app.kubernetes.io/part-of: database
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/instance: mysql-prod
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: cct-demo
 spec:
-  serviceName: mysql-service
+  serviceName: mysql
   replicas: 1
   minReadySeconds: 10
   selector:
     matchLabels:
-      app.kubernetes.io/name: mysql-pod
+      app.kubernetes.io/name: mysql
+      app.kubernetes.io/instance: mysql-prod
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: mysql-pod
-        app.kubernetes.io/component: instance
-        app.kubernetes.io/part-of: database
+        app.kubernetes.io/name: mysql
+        app.kubernetes.io/instance: mysql-prod
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: cct-demo
     spec:
       volumes:
-        - name: mysql-credentials-volume
+        - name: mysql-credentials
           secret:
             secretName: mysql-credentials
             items:
@@ -54,9 +59,9 @@ spec:
             - containerPort: 3306
               name: mysql-port
           volumeMounts:
-            - name: mysql-data-volume
+            - name: mysql-data
               mountPath: /var/lib/mysql
-            - name: mysql-credentials-volume
+            - name: mysql-credentials
               readOnly: true
               mountPath: "/etc/secrets"
           envFrom:
@@ -80,7 +85,7 @@ spec:
             periodSeconds: 5
   volumeClaimTemplates:
     - metadata:
-        name: mysql-data-volume
+        name: mysql-data
       spec:
         accessModes:
           - ReadWriteOnce
@@ -92,21 +97,30 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: mysql-seeding-job
+  name: mysql-seeder
   labels:
-    app: mysql
+    app.kubernetes.io/name: mysql
+    app.kubernetes.io/instance: mysql-prod
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: cct-demo
 spec:
   template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mysql
+        app.kubernetes.io/instance: mysql-prod
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: cct-demo
     spec:
       restartPolicy: OnFailure
       volumes:
-        - name: mysql-config-volume
+        - name: mysql-seed-script
           configMap:
             name: mysql-seed-script
             items:
               - key: seeding_script
                 path: ./seed.sql
-        - name: mysql-credentials-volume
+        - name: mysql-credentials
           secret:
             secretName: mysql-credentials
             items:
@@ -116,10 +130,10 @@ spec:
         - name: mysql-seeder
           image: mysql:8.4.0
           volumeMounts:
-            - name: mysql-config-volume
+            - name: mysql-seed-script
               readOnly: true
               mountPath: "/etc/configs"
-            - name: mysql-credentials-volume
+            - name: mysql-credentials
               readOnly: true
               mountPath: "/etc/secrets"
           envFrom:
@@ -129,17 +143,17 @@ spec:
             - name: MYSQL_PASSWORD_FILE
               value: /etc/secrets/mysql_password
             - name: MYSQL_HOST
-              value: mysql-statefulset-0.mysql-service.default.svc.cluster.local
+              value: mysql-0.mysql.default.svc.cluster.local
           command:
             - bash
             - -c
             - |
               mysqladmin ping -h $MYSQL_HOST \
                 -u $MYSQL_USER \
-                --password=$(< /etc/secrets/mysql_password) && \
+                --password=$(< $MYSQL_PASSWORD_FILE) && \
               mysql --host=$MYSQL_HOST \
                 -u $MYSQL_USER \
-                --password=$(< /etc/secrets/mysql_password) \
+                --password=$(< $MYSQL_PASSWORD_FILE) \
                 -D $MYSQL_DATABASE \
                 -e 'source /etc/configs/seed.sql' || \
               exit 1
