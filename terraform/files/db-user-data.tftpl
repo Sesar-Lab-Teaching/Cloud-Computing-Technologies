@@ -1,0 +1,47 @@
+#cloud-config
+#
+# provisioning script of db for ubuntu-based distro
+hostname: db
+ssh_pwauth: true
+password: ${password}
+chpasswd:
+  expire: false
+
+package_reboot_if_required: true
+package_update: true
+package_upgrade: true
+packages:
+  - gnupg
+
+write_files:
+- content: |
+    CREATE DATABASE ${database};
+    CREATE USER '${user}'@'%' IDENTIFIED BY '${password}';
+    GRANT ALL PRIVILEGES ON ${database}.* TO '${user}'@'%';
+    FLUSH PRIVILEGES;
+  path: /init.sql
+- content: |
+    #!/bin/bash
+
+    wget "https://dev.mysql.com/get/mysql-apt-config_0.8.33-1_all.deb"
+    export DEBIAN_FRONTEND=noninteractive && dpkg -i mysql-apt-config_0.8.33-1_all.deb
+    rm mysql-apt-config_0.8.33-1_all.deb
+
+    apt update
+    apt -y install mysql-server
+
+    mysql -u root < /init.sql
+
+    wget "https://raw.githubusercontent.com/Sesar-Lab-Teaching/Cloud-Computing-Technologies/refs/heads/main/sqldb/seed.sql"
+    mysql -u "${user}" --password="${password}" ${database} < seed.sql
+    rm seed.sql
+
+    sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf
+
+    systemctl restart mysql
+  permissions: '0744'
+  path: /start.sh
+
+runcmd:
+  - /start.sh
+
