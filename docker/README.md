@@ -1,14 +1,18 @@
 # Docker
 
-Docker allows us to replicate the scenario without Virtual machines or leveraging PaaS environments.
+Sources:
+- [Docker networking](https://labs.iximiuz.com/tutorials/container-networking-from-scratch)
+- [Docker Playground](https://labs.iximiuz.com/playgrounds/docker)
 
 ---
+
+# Deploying the reference scenario
 
 ## Docker image for Webserver
 
 The webserver code needs to be containerized, the first step is building an image. We can do it using:
 
-```
+```bash
 docker build -t my_image_name .
 ```
 
@@ -99,3 +103,37 @@ watch -n 3 docker compose -p cct ps
 
 After calling the `/make-unhealthy` endpoint, healthchecks start to fail and after 3 times (depending on the configuration), the autohealer will restart it.
 
+---
+
+## Pushing the webserver image
+
+Images should never be stored only locally in a production environment, but should be available in a shared registry. In this way, any replica node can easily pull the Docker image in case of primary node failure. You can push the image on Docker Hub or in a private registry. If the image is pushed on Docker Hub, we need to tag the image as follows:
+
+```bash
+docker tag cct-app:latest maluz/webserver-cct-demo:latest
+```
+
+Then make sure you are logged in into the public registry:
+
+```bash
+docker login
+```
+
+And finally push the image:
+
+```bash
+docker push maluz/webserver-cct-demo:latest
+```
+
+The alternative is using a private registry offered by a third-party vendor or build your own:
+
+```bash
+docker run -d -p 5001:5000 --restart always --name cct-registry registry:3
+```
+
+Tag the image with the new registry endpoint prefix and push it:
+
+```bash
+docker tag maluz/webserver-cct-demo:latest localhost:5001/cct-webserver:latest
+docker push localhost:5001/cct-webserver:latest
+```
