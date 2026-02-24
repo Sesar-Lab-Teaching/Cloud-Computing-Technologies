@@ -39,13 +39,6 @@ services:
       args:
         - PYTHON_VERSION=3.12
       context: ../webserver
-    logging:
-      driver: awslogs
-      options:
-        awslogs-endpoint: http://localhost:4566
-        awslogs-region: us-east-1
-        awslogs-group: cctWebServerGroup
-        awslogs-create-group: 'true'
     labels:
       autoheal: true
     env_file:
@@ -64,13 +57,6 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock
-
-  localstack:
-    image: localstack/localstack:4.13.1
-    ports:
-      - "4566:4566"
-    environment:
-      - SERVICES=cloudwatch,logs
 
 volumes:
   mysql_data:

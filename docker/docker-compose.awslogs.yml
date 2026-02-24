@@ -1,0 +1,16 @@
+services:
+  app:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-endpoint: http://localhost:4566
+        awslogs-region: us-east-1
+        awslogs-group: cctWebServerGroup
+        awslogs-create-group: 'true'
+    
+  localstack:
+    image: localstack/localstack:4.13.1
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=cloudwatch,logs
