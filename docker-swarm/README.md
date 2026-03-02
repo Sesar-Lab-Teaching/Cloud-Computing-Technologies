@@ -2,20 +2,16 @@
 
 Docker Swarm enables the management and scaling of containerized applications across multiple nodes in a cluster. This guide shows how to setup a simple Docker swarm to deploy our scenario. We propose two different ways to replicate it:
 
-- [Play with Docker](https://labs.play-with-docker.com/)
+- [Docker Playground](https://labs.iximiuz.com/playgrounds/docker)
 - Using VMs on your host
 
 ---
 
 ## Setup
 
-### Play with Docker
+We can use Vagrant to deploy VM with Docker already installed. Then, we can configure a Docker context for each of these machines.
 
-It is a very straightforward method to test docker swarm commands because you can easily create multiple nodes and connect them. Create 3 node using the *Add new instance* button, or start from a template by choosing from the list of available templates.
-
-You can also ssh into the docker containers provided by Play with Docker, copying the content of the SSH field in the container description.
-
-In the following sections, each docker command(s) will be associated to a node where the command must be executed. For example, when node is `manager1`, then run the command on the node we recognize as manager.
+In the following sections, each docker command(s) will be associated to a node where the command must be executed. For example, when node is `manager1`, then run the command on the manager node.
 
 ### Create VMs with Vagrant
 
@@ -210,7 +206,7 @@ Once you have created a service with a published port, it is available on all th
 
 ## Docker Stack
 
-Just like a container can be defined inside a Docker-compose, a service can be defined in a Docker stack. Conceptually a Docker-compose file and a Docker-stack file has the same structure, although Docker stack has additional features. The main difference between them is networking: Docker-compose sets up a bridge network, while Docker stack creates an overlay network.
+Just like a container can be defined inside a Docker-compose, a service can be defined in a Docker stack. Conceptually a Docker-compose file and a Docker-stack file has the same structure, although Docker stack has additional features. The main difference between them is networking: Docker-compose sets up a bridge network, while Docker stack creates an **overlay** network.
 
 To create a new stack:
 
@@ -234,7 +230,7 @@ When we create a stack, a default network is created for communication between c
 - One Virtual interface that is mapped to an IP in the Ingress network
 - One Virtual interface that is mapped to an IP in the service network
 
-Each service also has a Virtual IP associated, which we should use instead of the node IPs. Docker Swarm allows us to make a request to a service using a Virtual hostname (which is the service name by default) instead of the Virtual IP.
+Each service also has a Virtual IP associated, which we should use instead of the node IPs. By default, when you attach a service to a network and that service publishes one or more ports, Docker assigns the service a virtual IP (VIP), which is the "front end" for clients to reach the service. Docker keeps a list of all worker nodes in the service, and routes requests between the client and one of the nodes. Each request from the client might be routed to a different node. Docker Swarm allows us to make a request to a service using a Virtual hostname (which is the service name by default) instead of the Virtual IP.
 
 To delete a stack:
 
