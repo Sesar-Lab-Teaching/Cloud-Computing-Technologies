@@ -9,7 +9,7 @@ Sources:
 
 ## Setup
 
-The easiest way to locally create a Kubernetes cluster is through [Minikube](https://minikube.sigs.k8s.io/docs/start/). For this guide, we are going to use a multi-node cluster:
+The easiest way to locally create a Kubernetes cluster is through [Minikube](https://minikube.sigs.k8s.io/docs/start/). Another alternative is [this K8s Playground](https://labs.iximiuz.com/playgrounds/k8s-omni). For this guide, we are going to use a multi-node cluster:
 
 ```bash
 minikube start --nodes 2 -p kube-demo --addons storage-provisioner,default-storageclass,metrics-server
@@ -51,6 +51,8 @@ A Kubernetes cluster consists of two types of resources:
 When you deploy applications on Kubernetes, you tell the control plane to start the application containers. The control plane schedules the containers to run on the cluster's nodes. Node-level components, such as the kubelet, communicate with the control plane using the Kubernetes API, which the control plane exposes. End users can also use the Kubernetes API directly to interact with the cluster.
 
 ![k8s-architecture](https://kubernetes.io/images/docs/components-of-kubernetes.svg)
+
+For a detailed description on the K8s cluster, visit [this page](https://kubernetes.io/docs/concepts/architecture/).
 
 ---
 
@@ -272,7 +274,7 @@ Docker healthcheck are ignored in Kubernetes, instead we can use readiness and l
 
 > The kubelet uses readiness probes to know when a container is ready to start accepting traffic. One use of this signal is to control which Pods are used as backends for Services. A Pod is considered ready when its Ready condition is true. When a Pod is not ready, it is removed from Service load balancers.
 
-For the webserver we have specified a readiness probe, which determines whether the webserver is ready to accept connections. If the probe fails, the pod is marked as *NotReady* and is removed from the Load Balancing service. Nonetheless, it is not restarted or replaced by a new pod, meaning that the deployment set will still have 2 pods, but only one of them will receive traffic.
+For the webserver we have specified both the readiness, which determines whether the webserver is ready to accept connections, and liveness probe, which restarts the pod if it fails. If the probe fails, for example by calling the `/make-unhealthy` route, the pod is marked as *NotReady* and is (temporarily) removed from the Load Balancing service. After it is restarted, due to the liveness probe,and the readiness probe succeeds, then it is re-attached to the Load Balancer service. By keeping the readiness probe only, it is not restarted or replaced by a new pod, meaning that the deployment set would have 2 pods, but only one of them will receive traffic.
 
 The autoscaling component scales out/in pod depending on the monitored metrics, which are exposed by a metrics server. To enable its addon on Minikube, run
 
