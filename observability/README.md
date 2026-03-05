@@ -313,6 +313,13 @@ service:
               prometheus:
                 host: '0.0.0.0'
                 port: 8888
+    logs:
+      processors:
+        - batch:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: https://backend:4318
   pipelines:
     traces:
       receivers: [otlp]
@@ -332,3 +339,32 @@ The service section consists of three subsections:
 - **Extensions** - Extensions to be enabled
 - **Pipelines** - is where the pipelines are configured, which can be of the types `traces`, `metrics`, and `logs`. A pipeline consists of a set of receivers, processors and exporters.
 - **Telemetry** - The `telemetry` config section is where you can set up observability for the Collector itself. It consists of two subsections: logs and metrics.
+
+### [Extensions](https://opentelemetry.io/docs/collector/components/extension/)
+
+Extensions provide additional capabilities like health checks and service discovery. Three useful extensions for debugging and monitoring purposes are:
+
+- [health_check](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.147.0/extension/healthcheckextension/README.md) - enables an HTTP url that can be probed to check the status of the OpenTelemetry Collector. The default path is `http://otel-collector:13133/`.
+- [zPages](https://github.com/open-telemetry/opentelemetry-collector/blob/v0.147.0/extension/zpagesextension/README.md) - Enables an extension that serves zPages, an HTTP endpoint that provides live data for debugging different components that were properly instrumented for such. The default endpoint is `http://otel-collector:55679`. See the linked doc for the available paths.
+- [pprof](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/v0.147.0/extension/pprofextension) - Performance Profiler extension enables the golang `net/http/pprof` endpoint. This is typically used by developers to collect performance profiles and investigate issues with the service. The default endpoint is `http://otel-collector:1777`. See the linked doc for the available paths.
+
+### Exporters
+
+We choose one (or more) exporter for each of the three signal types: for traces we pick [Jaeger](https://www.jaegertracing.io), for metrics there is [Prometheus](https://prometheus.io), while for logs we use [Grafana Loki](https://grafana.com/oss/loki/).
+
+# Observe the reference scenario
+
+To keep things simpler, we use a Docker-based single node deployment, which starts from the db and webserver containers. The container responsible for seeding the db was removed because the db is initialized through the `/docker-entrypoint-initdb.d` folder.
+
+The additional containers are:
+
+- `otel-collector` - the OpenTelemetry collector
+- `prometheus` - the prometheus server for metrics collection
+- `loki` - loki server for logs collection
+- `grafana` - Grafana for visualization
+
+First, to deploy using Docker Compose:
+
+```bash
+docker compose -p cct -f deploy/docker-compose.yaml up -d --build
+```

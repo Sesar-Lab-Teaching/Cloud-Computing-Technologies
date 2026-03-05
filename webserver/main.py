@@ -67,13 +67,13 @@ def get_data():
     '''
     
     for d in data:
-       html += f'''
+        html += f'''
                 <tr>
                     <td>{d[0]}</td>
                     <td>{d[1]}</td>
                     <td>{d[2]}</td>
                 </tr>
-    '''
+        '''
     html += f'''
             </table>
             <hr />
