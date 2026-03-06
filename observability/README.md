@@ -125,9 +125,11 @@ Automatic instrumentation with Python uses a Python **agent** that can be attach
 Run the following commands to install the appropriate packages.
 
 ```bash
-pip install opentelemetry-distro opentelemetry-exporter-otlp
+pip install opentelemetry-distro[otlp]
 opentelemetry-bootstrap -a install
 ```
+
+In particular, `opentelemetry-bootstrap -a install` is necessary because it detects (and install) additional instrumentation libraries starting from the installed packages. For instance, you have already installed `flask`, it automatically install the `opentelemetry-instrumentation-flask` package.
 
 #### Example of Manually instrumented server
 
@@ -360,11 +362,18 @@ The additional containers are:
 
 - `otel-collector` - the OpenTelemetry collector
 - `prometheus` - the prometheus server for metrics collection
+- `jaeger` - the Jaeger server to visualize traces
 - `loki` - loki server for logs collection
 - `grafana` - Grafana for visualization
 
 First, to deploy using Docker Compose:
 
 ```bash
-docker compose -p cct -f deploy/docker-compose.yaml up -d --build
+docker compose -f deploy/docker-compose.yaml up -d --build
+```
+
+To clean up:
+
+```bash
+docker compose -f deploy/docker-compose.yaml down -v
 ```

@@ -5,17 +5,23 @@ receivers:
         endpoint: '0.0.0.0:4317'
       http:
         endpoint: '0.0.0.0:4318'
+  docker_stats:
+    # default endpoint: unix:///var/run/docker.sock
+    collection_interval: 10s
+    initial_delay: 15s
+    timeout: 10s
 
 exporters:
   debug:
     verbosity: detailed
   prometheus:
     endpoint: '0.0.0.0:8889'
-    metric_expiration: '60m'
-  # otlp/jaeger:
-  #   endpoint: jaeger:4317
-  #   sending_queue:
-  #     batch:
+    metric_expiration: '30m'
+  otlp_grpc/jaeger:
+    endpoint: jaeger:4317
+    sending_queue:
+      batch:
+        flush_timeout: 10s
 
 extensions:
   health_check:
@@ -43,12 +49,12 @@ service:
     #             protocol: http/protobuf
     #             endpoint: https://backend:4318
   pipelines:
-    # traces:
-    #   receivers: [otlp]
-    #   exporters: [otlp/jaeger]
-    metrics:
+    traces:
       receivers: [otlp]
-      exporters: [debug, prometheus]
+      exporters: [otlp_grpc/jaeger]
+    metrics:
+      receivers: [otlp, docker_stats]
+      exporters: [prometheus]
     # logs:
     #   receivers: [otlp]
     #   exporters: [otlp_grpc]

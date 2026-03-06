@@ -35,8 +35,16 @@ services:
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib
+    depends_on:
+      jaeger:
+        condition: service_healthy
     volumes:
       - ./observability/otel-collector/config.yaml:/etc/otelcol/config.yaml
+      # necessary to collect metrics from containers
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # for docker permission on non-root container (get the group id from `getent group docker`)
+    group_add:
+      - 984
     command: ["--config=/etc/otelcol/config.yaml"]
     ports:
       - 1777:1777 # pprof extension
@@ -53,7 +61,7 @@ services:
       otel-collector:
         condition: service_started
     healthcheck:
-      test: ["CMD", "wget", "-O", "-", "--no-verbose", "http://localhost:9090/api/v1/status/runtimeinfo"]
+      test: ["CMD", "wget", "-O", "-", "-q", "http://localhost:9090/api/v1/status/runtimeinfo"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -63,6 +71,27 @@ services:
     volumes:
       - ./observability/prometheus/config.yaml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
+
+  jaeger:
+    image: jaegertracing/jaeger:2.15.1
+    command: ['--config', '/jaeger/config.yaml']
+    volumes:
+      - ./observability/jaeger/config.yaml:/jaeger/config.yaml
+    healthcheck:
+      test: ["CMD", "wget", "-O", "-", "-q", "http://localhost:13133/health/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    ports:
+      - 16686:16686 # serve frontend
+      # - 4317:4317 # accept OpenTelemetry Protocol (OTLP) over gRPC
+      # - 4318:4318 # accept OpenTelemetry Protocol (OTLP) over HTTP
+      # - 14250:14250
+      # - 14268:14268
+      - 13134:13133 # endpoint: /status	 | function: Healthcheck port via the healthcheckv2 extension
+      # - 8888:8888 # endpoint: /metrics | function: metrics port for exposing metrics which can be scraped with Prometheus compatible systems
+      # - 9411:9411
 
   grafana:
     image: grafana/grafana
