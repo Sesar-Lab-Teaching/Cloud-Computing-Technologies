@@ -1,19 +1,3 @@
-service:
-  extensions: [jaeger_storage, jaeger_query, healthcheckv2, pprof]
-  pipelines:
-    traces:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [jaeger_storage_exporter]
-  telemetry:
-    metrics:
-      readers:
-        - pull:
-            exporter:
-              prometheus:
-                host: 0.0.0.0
-                port: 8888
-
 extensions:
   healthcheckv2:
     use_v2: true
@@ -62,9 +46,25 @@ receivers:
       http:
         endpoint: "0.0.0.0:4318"
 
-processors:
-  batch:
+# processors:
+#   batch:
 
 exporters:
   jaeger_storage_exporter:
     trace_storage: trace_storage
+
+service:
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2, pprof, zpages]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      # processors: [batch]
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888

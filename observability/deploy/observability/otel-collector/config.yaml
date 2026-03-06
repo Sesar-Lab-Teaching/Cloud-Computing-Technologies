@@ -19,6 +19,8 @@ exporters:
     metric_expiration: '30m'
   otlp_grpc/jaeger:
     endpoint: jaeger:4317
+    tls:
+      insecure: true
     sending_queue:
       batch:
         flush_timeout: 10s
