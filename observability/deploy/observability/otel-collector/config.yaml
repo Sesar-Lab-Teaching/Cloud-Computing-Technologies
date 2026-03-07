@@ -24,6 +24,10 @@ exporters:
     sending_queue:
       batch:
         flush_timeout: 10s
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
 
 extensions:
   health_check:
@@ -57,6 +61,6 @@ service:
     metrics:
       receivers: [otlp, docker_stats]
       exporters: [prometheus]
-    # logs:
-    #   receivers: [otlp]
-    #   exporters: [otlp_grpc]
+    logs:
+      receivers: [otlp]
+      exporters: [otlp_http/loki]
