@@ -1,6 +1,6 @@
 # Terraform
 
-In this demo, we are going to deploy the reference scenario using one of the most popular IaC tool: Terraform. Terraform relies on plugins called providers to interact with cloud providers, SaaS providers, and other APIs. Providers are distributed separately from Terraform itself and they can be found in the Terraform Registry. The provider we use for this demo is the Docker provider; in this way, we can manage all docker images, network, volumes, and containers from Terraform. The advantage of Terraform over using a Dockercompose is that a Terraform deployment can include multiple providers, mixing resources from AWS, GCP, Docker, Azure, and even custom providers, for instance.
+In this demo, we are going to deploy the reference scenario using one of the most popular IaC tool: Terraform. Terraform relies on plugins called providers to interact with cloud providers, SaaS providers, and other APIs. Providers are distributed separately from Terraform itself and they can be found in the Terraform Registry. The advantage of Terraform is that a deployment can include multiple providers, mixing resources from AWS, GCP, Docker, Azure, and even custom providers, for instance. The providers we use for this demo are the Docker provider and AWS provider; in this way, we can centralize the management of our infrastructure, even if distributed across Docker and AWS. These providers map Docker and AWS resources to Terraform resources, which can be configured using HCL (Hashicorp Configuration Language).
 
 ## Initialization
 
