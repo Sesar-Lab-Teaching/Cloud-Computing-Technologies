@@ -6,7 +6,14 @@ datasources:
     type: loki
     access: proxy
     url: http://loki:3100
-    # jsonData:
-    #   httpHeaderName1: "X-Scope-OrgID"
-    # secureJsonData:
-    #   httpHeaderValue1: "tenant1"
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: jaeger
+          matcherType: label
+          matcherRegex: "trace[_]?id"
+          name: trace_id
+          # url will be interpreted as query for the datasource
+          url: '$${__value.raw}'
+          # optional for URL Label to set a custom display label for the link.
+          urlDisplayLabel: 'View Trace'

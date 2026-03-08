@@ -10,3 +10,18 @@ datasources:
     #   httpHeaderName1: "X-Scope-OrgID"
     # secureJsonData:
     #   httpHeaderValue1: "tenant1"
+    jsonData:
+      tracesToLogsV2:
+        # Field with an internal link pointing to a logs data source in Grafana.
+        # datasourceUid value must match the uid value of the logs data source.
+        datasourceUid: 'loki'
+        spanStartTimeShift: '-1m'
+        spanEndTimeShift: '1m'
+        filterByTraceID: false
+        tags:
+          - key: service.name
+            value: service_name
+      tracesToMetrics:
+        datasourceUid: 'prometheus'
+        spanStartTimeShift: '-1m'
+        spanEndTimeShift: '1m'

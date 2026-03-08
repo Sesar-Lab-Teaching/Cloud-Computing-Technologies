@@ -16,3 +16,7 @@ datasources:
       disableRecordingRules: false
       seriesEndpoint: false
       timeInterval: 5s # Prometheus scrape interval
+      exemplarTraceIdDestinations:
+        - datasourceUid: jaeger
+          name: trace_id
+          urlDisplayLabel: 'View trace'
