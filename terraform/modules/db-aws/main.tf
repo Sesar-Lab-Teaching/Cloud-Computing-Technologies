@@ -49,6 +49,10 @@ resource "aws_instance" "db" {
     database = var.db_database
   })
 
+  provisioner "local-exec" {
+    command = "aws ec2 wait instance-status-ok --instance-ids ${self.id}"
+  }
+
   tags = {
     Name = "cct-terraform"
   }
